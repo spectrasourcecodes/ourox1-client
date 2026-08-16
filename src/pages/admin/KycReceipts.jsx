@@ -62,7 +62,7 @@ const KycReceipts = () => {
     <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
-        <title>Fatura Pendente - ARK Investment</title>
+        <title>Fatura Pendente - Ouro Investment</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
@@ -111,9 +111,9 @@ const KycReceipts = () => {
     <body>
     <div class="invoice">
         <div class="header">
-            <div class="logo">ARK<span>INVEST</span></div>
+            <div class="logo">OUROS<span>INVEST</span></div>
             <div class="company-details">
-                <strong>ARK Investment</strong>
+                <strong>Ouro Investment</strong>
                 Empresa de Investimentos em Criptomoedas<br>
                 CNPJ: 00.000.000/0001-00
             </div>
@@ -149,7 +149,7 @@ const KycReceipts = () => {
             Seu saque e funcionalidades da conta serão ativados somente após a confirmação do pagamento.
         </div>
         <div class="footer">
-            © 2026 ARK Investment — Todos os direitos reservados.<br>
+            © 2026 Ouro Investment — Todos os direitos reservados.<br>
             Este documento é uma fatura comercial e não requer assinatura.
         </div>
     </div>
@@ -162,7 +162,7 @@ const KycReceipts = () => {
     <html lang="pt-BR">
     <head>
         <meta charset="UTF-8">
-        <title>Recibo de Pagamento - ARK Investment</title>
+        <title>Recibo de Pagamento - Ouro Investment</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
@@ -215,9 +215,9 @@ const KycReceipts = () => {
     <body>
     <div class="receipt">
         <div class="header">
-            <div class="logo">ARK<span>INVEST</span></div>
+            <div class="logo">Ouro<span>INVEST</span></div>
             <div class="company-details">
-                <strong>ARK Investment</strong>
+                <strong>Ouro Investment</strong>
                 Empresa de Investimentos em Criptomoedas<br>
                 CNPJ: 00.000.000/0001-00
             </div>
@@ -249,15 +249,15 @@ const KycReceipts = () => {
             <div class="status-success">✔️ Pagamento aprovado com sucesso</div>
         </div>
         <div class="declaration">
-            <strong>📄 Declaração Oficial:</strong> A <strong>ARK Investment</strong> declara que recebeu o valor acima descrito referente à 
+            <strong>📄 Declaração Oficial:</strong> A <strong>Ouro Investment</strong> declara que recebeu o valor acima descrito referente à 
             <strong>Esta é sua confirmação oficial de pagamento. Sua conta está agora totalmente desbloqueada para saques e negociações. Compre o token pin para desbloquear todo o seu lucro.</strong>. Sua conta está totalmente desbloqueada para saques e operações.
         </div>
         <div class="signature">
-            <div>Assinatura da Empresa<br><strong>ARK Investment</strong></div>
+            <div>Assinatura da Empresa<br><strong>Ouro Investment</strong></div>
             <div>Responsável Financeiro<br><strong>Cathie Wood</strong></div>
         </div>
         <div class="footer">
-            © 2026 ARK Investment — Todos os direitos reservados.<br>
+            © 2026 Ouro Investment — Todos os direitos reservados.<br>
             Comprovante emitido eletronicamente e válido em todo território nacional.
         </div>
     </div>
@@ -596,7 +596,7 @@ const KycReceipts = () => {
       {/* Security Footer */}
       <div className="mt-8 flex items-center justify-center gap-2 text-sm text-gray-500">
         <Shield size={16} />
-        Sistema seguro e verificado | ARK Investment
+        Sistema seguro e verificado | Ouro Investment
       </div>
     </div>
   );

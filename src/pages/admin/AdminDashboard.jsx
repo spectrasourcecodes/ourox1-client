@@ -357,7 +357,7 @@ const AdminDashboard = () => {
             <p className="text-xs text-blue-200 mt-2">{stats.totalUsers} total users</p>
           </Link>
           
-          <Link to="#" className="bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-2xl p-6 text-white hover:shadow-lg transition-all">
+          <Link to="/admin/kyc-receipts" className="bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-2xl p-6 text-white hover:shadow-lg transition-all">
             <Shield className="w-8 h-8 mb-4 opacity-80" />
             <h4 className="text-xl font-bold mb-1">KYC Reciepts</h4>
             <p className="text-sm text-yellow-100">{stats.kycPending} pending verifications</p>
