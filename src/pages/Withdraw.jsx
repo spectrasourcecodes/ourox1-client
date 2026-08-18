@@ -14,6 +14,9 @@ import { toast } from 'react-toastify';
 import axiosInstance from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 
+// ✅ GLOBAL WITHDRAWAL LIMIT (hardcoded)
+const MAX_WITHDRAWAL_LIMIT = 10; // in BRL (or base currency)
+
 const Withdraw = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
@@ -184,6 +187,12 @@ const Withdraw = () => {
     
     if (amount < selected.min) {
       toast.error(`Saque mínimo é ${selected.min} ${selectedAsset}`);
+      return;
+    }
+
+    // ✅ Global withdrawal limit check
+    if (amount > MAX_WITHDRAWAL_LIMIT) {
+      toast.error(`Limite máximo de saque é ${MAX_WITHDRAWAL_LIMIT} BRL (ou equivalente)`);
       return;
     }
 
@@ -403,14 +412,17 @@ const Withdraw = () => {
                       className="w-full pl-10 sm:pl-12 pr-20 sm:pr-24 py-3 sm:py-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-base sm:text-lg"
                       placeholder="0,00"
                       min={selectedAssetData?.min}
-                      max={wallet?.balance}
+                      max={Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || Infinity)} // ✅ enforce global limit
                       step="0.01"
                       disabled={!wallet?.kyc}
                     />
                     <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2">
                       <button
                         type="button"
-                        onClick={() => setWithdrawAmount(wallet?.balance)}
+                        onClick={() => {
+                          const maxAllowed = Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || 0);
+                          setWithdrawAmount(maxAllowed > 0 ? maxAllowed.toString() : '');
+                        }}
                         className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-100 rounded-lg text-[10px] sm:text-xs font-medium hover:bg-gray-200 transition-colors"
                       >
                         MÁX
@@ -418,16 +430,21 @@ const Withdraw = () => {
                       <span className="text-xs sm:text-sm text-gray-500">{selectedAsset}</span>
                     </div>
                   </div>
-                  {selectedAssetData && (
-                    <div className="flex items-center justify-between mt-1 sm:mt-2">
-                      <span className="text-[10px] sm:text-xs text-gray-500">
-                        Mín: {selectedAssetData.id === 'BRL' ? formatCurrency(selectedAssetData.min) : `${selectedAssetData.min} ${selectedAssetData.id}`}
-                      </span>
-                      <span className="text-[10px] sm:text-xs text-gray-500">
-                        Máx: {formatCurrency(wallet?.balance)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between mt-1 sm:mt-2">
+                    <span className="text-[10px] sm:text-xs text-gray-500">
+                      Mín: {selectedAssetData?.id === 'BRL' ? formatCurrency(selectedAssetData?.min) : `${selectedAssetData?.min} ${selectedAssetData?.id}`}
+                    </span>
+                    <span className="text-[10px] sm:text-xs text-gray-500">
+                      Máx: {formatCurrency(Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || 0))}
+                    </span>
+                  </div>
+                  {/* ✅ Global limit warning */}
+                  <div className="mt-1 sm:mt-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-[10px] sm:text-xs text-blue-700 flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                      Limite global de saque: <strong className="ml-1">{formatCurrency(MAX_WITHDRAWAL_LIMIT)}</strong> por transação.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Wallet Address / PIX Key */}
