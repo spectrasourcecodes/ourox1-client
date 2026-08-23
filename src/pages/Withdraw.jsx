@@ -8,7 +8,11 @@ import {
   RefreshCw,
   Shield,
   ChevronRight,
-  History
+  History,
+  X,
+  Send,
+  Lock,
+  Clock
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import axiosInstance from '../utils/axios';
@@ -19,7 +23,7 @@ const MAX_WITHDRAWAL_LIMIT = 10; // in BRL (or base currency)
 
 const Withdraw = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, kycStatus, setKycStatus } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState(null);
@@ -30,6 +34,24 @@ const Withdraw = () => {
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState('PIX');
+
+  // KYC Modal states
+  const [showKycModal, setShowKycModal] = useState(false);
+  const [kycCode, setKycCode] = useState('');
+  const [kycError, setKycError] = useState('');
+  const [kycAttempts, setKycAttempts] = useState(0);
+  const [isVerifyingKyc, setIsVerifyingKyc] = useState(false);
+  const [pendingWithdrawalData, setPendingWithdrawalData] = useState(null);
+
+  // Pending modal state
+  const [showPendingModal, setShowPendingModal] = useState(false);
+
+  // KYC codes from environment
+  const getKycCodes = () => {
+    const codesString = import.meta.env.VITE_KYC_CODES || '';
+    return codesString.split(',').map(code => code.trim()).filter(code => code.length > 0);
+  };
+  const KYC_CODES = getKycCodes();
 
   const assets = [
     { 
@@ -169,10 +191,32 @@ const Withdraw = () => {
     fetchWithdrawData();
   }, [isAuthenticated]);
 
+  // Submit withdrawal (after validation & KYC check)
+  const submitWithdrawal = async () => {
+    setIsProcessing(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Show pending modal instead of success toast
+      setShowPendingModal(true);
+      setWithdrawAmount('');
+      setWithdrawAddress('');
+      
+      // Optionally refresh data
+      fetchWithdrawData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Falha no saque');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Main withdraw handler
   const handleWithdraw = async (e) => {
     e.preventDefault();
     
-    if (!wallet?.kyc) {
+    if (!wallet?.kyc && kycStatus !== 'approved') {
       toast.error('Por favor, complete a verificação KYC primeiro');
       return;
     }
@@ -201,22 +245,68 @@ const Withdraw = () => {
       return;
     }
 
-    setIsProcessing(true);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast.success('Solicitação de saque enviada com sucesso');
-      setWithdrawAmount('');
-      setWithdrawAddress('');
-      
-      fetchWithdrawData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Falha no saque');
-    } finally {
-      setIsProcessing(false);
+    // If KYC is not yet approved, open KYC modal and store data
+    if (kycStatus !== 'approved') {
+      setPendingWithdrawalData({
+        amount,
+        asset: selectedAsset,
+        address: withdrawAddress,
+        network: selectedNetwork,
+        assetData: selected
+      });
+      setShowKycModal(true);
+      return;
     }
+
+    // KYC already approved → submit directly
+    await submitWithdrawal();
+  };
+
+  // KYC verification logic (copied from KYC.jsx)
+  const handleVerifyKycCode = () => {
+    const code = kycCode.trim();
+    if (!code) {
+      setKycError('Por favor, insira o código de verificação');
+      return;
+    }
+
+    if (typeof setKycStatus !== 'function') {
+      console.error('setKycStatus is not a function!');
+      toast.error('Erro interno. Por favor, recarregue a página.');
+      return;
+    }
+
+    setIsVerifyingKyc(true);
+    setKycError('');
+
+    setTimeout(() => {
+      if (KYC_CODES.includes(code)) {
+        setKycStatus('approved');
+        toast.success('Verificação KYC concluída com sucesso! 🎉');
+        setShowKycModal(false);
+        setKycCode('');
+        setKycAttempts(0);
+        setKycError('');
+        // After successful KYC, submit the withdrawal
+        submitWithdrawal();
+      } else {
+        const newAttempts = kycAttempts + 1;
+        setKycAttempts(newAttempts);
+        
+        if (newAttempts >= 3) {
+          setKycError('Código inválido. Você excedeu o número máximo de tentativas.');
+          toast.error('Muitas tentativas falhas. Clique em "Sacar Fundos" para recomeçar.');
+          setKycAttempts(0);
+          setShowKycModal(false);
+          setKycCode('');
+          setKycStatus('rejected');
+        } else {
+          setKycError(`Código inválido. ${3 - newAttempts} tentativa(s) restante(s).`);
+          setKycCode('');
+        }
+      }
+      setIsVerifyingKyc(false);
+    }, 1000);
   };
 
   const handleRefresh = () => {
@@ -277,7 +367,7 @@ const Withdraw = () => {
   );
 
   const KYCStatus = () => {
-    if (wallet?.kyc) {
+    if (kycStatus === 'approved') {
       return (
         <div className="bg-green-50/80 backdrop-blur-sm border-l-4 border-green-400 p-4 rounded-2xl mb-6">
           <div className="flex items-center">
@@ -414,7 +504,7 @@ const Withdraw = () => {
                       min={selectedAssetData?.min}
                       max={Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || Infinity)} // ✅ enforce global limit
                       step="0.01"
-                      disabled={!wallet?.kyc}
+                      disabled={!wallet?.kyc && kycStatus !== 'approved'}
                     />
                     <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2">
                       <button
@@ -460,7 +550,7 @@ const Withdraw = () => {
                       onChange={(e) => setWithdrawAddress(e.target.value)}
                       className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
                       placeholder={selectedAsset === 'BRL' ? 'CPF, E-mail, Telefone ou Chave aleatória' : `Digite o endereço ${selectedAsset}`}
-                      disabled={!wallet?.kyc}
+                      disabled={!wallet?.kyc && kycStatus !== 'approved'}
                     />
                   </div>
                   <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-2 flex items-center">
@@ -497,7 +587,7 @@ const Withdraw = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!wallet?.kyc || isProcessing}
+                  disabled={(!wallet?.kyc && kycStatus !== 'approved') || isProcessing}
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 sm:py-4 px-6 rounded-xl transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
                   {isProcessing ? (
@@ -618,6 +708,117 @@ const Withdraw = () => {
           </div>
         </div>
       </div>
+
+      {/* KYC CODE MODAL */}
+      {showKycModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex justify-between items-start mb-3 sm:mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Verificação KYC</h3>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  Para prosseguir com o saque, insira o código de verificação fornecido pela nossa equipe de suporte.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowKycModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="my-3 sm:my-4">
+              <label htmlFor="kycCodeInput" className="block text-sm font-medium text-gray-700 mb-1">
+                Código de Verificação
+              </label>
+              <input
+                id="kycCodeInput"
+                type="text"
+                placeholder="Digite o código de 6 dígitos"
+                value={kycCode}
+                onChange={(e) => setKycCode(e.target.value)}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border ${kycError ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base`}
+                autoFocus
+              />
+              {kycError && (
+                <div className="flex items-center gap-2 mt-2 text-red-600 text-xs sm:text-sm">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span>{kycError}</span>
+                </div>
+              )}
+              {kycAttempts > 0 && kycAttempts < 3 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Tentativas restantes: {3 - kycAttempts}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button
+                onClick={handleVerifyKycCode}
+                disabled={isVerifyingKyc || kycAttempts >= 3}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+              >
+                {isVerifyingKyc ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Verificar Código
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowKycModal(false)}
+                className="px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            {kycAttempts >= 3 && (
+              <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                <p className="text-center text-xs sm:text-sm text-red-600">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 inline-block mr-1" />
+                  Muitas tentativas falhas. Clique em "Sacar Fundos" para recomeçar.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PENDING WITHDRAWAL MODAL */}
+      {showPendingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Clock className="w-8 h-8 text-yellow-600" />
+              </div>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Saque Pendente</h3>
+            <p className="text-sm sm:text-base text-gray-600 mb-6">
+              Sua solicitação de saque foi recebida e está aguardando aprovação do administrador. 
+              Você receberá uma notificação assim que for aprovado.
+            </p>
+            <button
+              onClick={() => setShowPendingModal(false)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all text-sm sm:text-base"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
