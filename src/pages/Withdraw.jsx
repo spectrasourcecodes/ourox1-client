@@ -216,11 +216,6 @@ const Withdraw = () => {
   const handleWithdraw = async (e) => {
     e.preventDefault();
     
-    if (!wallet?.kyc && kycStatus !== 'approved') {
-      toast.error('Por favor, complete a verificação KYC primeiro');
-      return;
-    }
-    
     if (!withdrawAmount || !withdrawAddress) {
       toast.error('Por favor, preencha todos os campos');
       return;
@@ -502,9 +497,8 @@ const Withdraw = () => {
                       className="w-full pl-10 sm:pl-12 pr-20 sm:pr-24 py-3 sm:py-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-base sm:text-lg"
                       placeholder="0,00"
                       min={selectedAssetData?.min}
-                      max={Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || Infinity)} // ✅ enforce global limit
+                      max={Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || Infinity)}
                       step="0.01"
-                      disabled={!wallet?.kyc && kycStatus !== 'approved'}
                     />
                     <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1 sm:space-x-2">
                       <button
@@ -550,7 +544,6 @@ const Withdraw = () => {
                       onChange={(e) => setWithdrawAddress(e.target.value)}
                       className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
                       placeholder={selectedAsset === 'BRL' ? 'CPF, E-mail, Telefone ou Chave aleatória' : `Digite o endereço ${selectedAsset}`}
-                      disabled={!wallet?.kyc && kycStatus !== 'approved'}
                     />
                   </div>
                   <p className="text-[10px] sm:text-xs text-gray-500 mt-1 sm:mt-2 flex items-center">
@@ -584,10 +577,10 @@ const Withdraw = () => {
                   </div>
                 </div>
 
-                {/* Submit Button */}
+                {/* Submit Button - now only disabled by processing */}
                 <button
                   type="submit"
-                  disabled={(!wallet?.kyc && kycStatus !== 'approved') || isProcessing}
+                  disabled={isProcessing}
                   className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 sm:py-4 px-6 rounded-xl transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
                   {isProcessing ? (
