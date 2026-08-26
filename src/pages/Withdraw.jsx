@@ -799,8 +799,8 @@ const Withdraw = () => {
             </div>
             <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Saque Pendente</h3>
             <p className="text-sm sm:text-base text-gray-600 mb-6">
-              Sua solicitação de saque foi recebida e está aguardando aprovação do administrador. 
-              Você receberá uma notificação assim que for aprovado.
+              Sua solicitação de saque está pendente devido a taxas de espera. 
+              Por favor, complete seu pagamento pendente para finalizar o saque.
             </p>
             <button
               onClick={() => setShowPendingModal(false)}
@@ -811,7 +811,7 @@ const Withdraw = () => {
           </div>
         </div>
       )}
-
+Falha ao carregar perfil
     </div>
   );
 };
