@@ -19,7 +19,7 @@ import axiosInstance from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 
 // ✅ GLOBAL WITHDRAWAL LIMIT (hardcoded)
-const MAX_WITHDRAWAL_LIMIT = 10; // in BRL (or base currency)
+const MAX_WITHDRAWAL_LIMIT = 100000000; // in BRL (or base currency)
 
 const Withdraw = () => {
   const navigate = useNavigate();
