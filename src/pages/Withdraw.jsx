@@ -13,7 +13,8 @@ import {
   Send,
   Lock,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Key
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import axiosInstance from '../utils/axios';
@@ -50,6 +51,16 @@ const Withdraw = () => {
   const [transferStatus, setTransferStatus] = useState('pending'); // 'pending' | 'failed' | 'complete'
   const [shouldFail] = useState(true); // set to false to simulate success
   const progressInterval = useRef(null);
+
+  // PIN verification states
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinCode, setPinCode] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinAttempts, setPinAttempts] = useState(0);
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  // Hardcoded transaction PIN (from env or fallback)
+  const TRANSACTION_PIN = import.meta.env.VITE_TRANSACTION_PIN || '123456';
 
   // KYC codes from environment
   const getKycCodes = () => {
@@ -203,7 +214,7 @@ const Withdraw = () => {
     };
   }, []);
 
-  // Start transfer simulation when modal opens
+  // Start transfer simulation when modal opens (failure path only)
   useEffect(() => {
     if (showTransferModal) {
       setTransferProgress(0);
@@ -217,7 +228,7 @@ const Withdraw = () => {
           progressInterval.current = null;
           setTransferProgress(45);
           setTransferStatus('failed');
-          toast.error('Falha na transferência. Tente novamente.');
+          toast.error('Não foi possível completar a transferência. Tente novamente.');
           return;
         }
         if (progress >= 100) {
@@ -248,8 +259,15 @@ const Withdraw = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Show transfer simulation modal
-      setShowTransferModal(true);
+      // Decide flow based on shouldFail
+      if (shouldFail) {
+        // Failure simulation
+        setShowTransferModal(true);
+      } else {
+        // Account reactivated → request security PIN
+        setShowPinModal(true);
+      }
+      
       setWithdrawAmount('');
       setWithdrawAddress('');
       
@@ -260,6 +278,50 @@ const Withdraw = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Handle PIN verification
+  const handleVerifyPin = () => {
+    const pin = pinCode.trim();
+    if (!pin) {
+      setPinError('Por favor, insira o PIN de segurança.');
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    setPinError('');
+
+    setTimeout(() => {
+      if (pin === TRANSACTION_PIN) {
+        // Correct PIN – show success modal
+        setShowPinModal(false);
+        setPinCode('');
+        setPinAttempts(0);
+        setPinError('');
+        setIsVerifyingPin(false);
+        // Show success transfer modal
+        setShowTransferModal(true);
+        // Override the progress to complete immediately
+        setTransferProgress(100);
+        setTransferStatus('complete');
+        toast.success('Transferência concluída com sucesso!');
+      } else {
+        const newAttempts = pinAttempts + 1;
+        setPinAttempts(newAttempts);
+        if (newAttempts >= 3) {
+          setPinError('PIN incorreto. Você excedeu o número máximo de tentativas.');
+          toast.error('Muitas tentativas falhas. A transação foi cancelada.');
+          setShowPinModal(false);
+          setPinCode('');
+          setPinAttempts(0);
+          setPinError('');
+        } else {
+          setPinError(`PIN incorreto. ${3 - newAttempts} tentativa(s) restante(s).`);
+          setPinCode('');
+        }
+        setIsVerifyingPin(false);
+      }
+    }, 800);
   };
 
   // Main withdraw handler
@@ -307,7 +369,7 @@ const Withdraw = () => {
     await submitWithdrawal();
   };
 
-  // KYC verification logic (copied from KYC.jsx)
+  // KYC verification logic
   const handleVerifyKycCode = () => {
     const code = kycCode.trim();
     if (!code) {
@@ -440,7 +502,7 @@ const Withdraw = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
-      {/* Page Header - Just the title and actions */}
+      {/* Page Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-2">
         <div className="flex items-center justify-between">
           <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -572,7 +634,7 @@ const Withdraw = () => {
                       Máx: {formatCurrency(Math.min(MAX_WITHDRAWAL_LIMIT, wallet?.balance || 0))}
                     </span>
                   </div>
-                  {/* ✅ Global limit warning */}
+                  {/* Global limit warning */}
                   <div className="mt-1 sm:mt-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
                     <p className="text-[10px] sm:text-xs text-blue-700 flex items-center">
                       <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -627,7 +689,7 @@ const Withdraw = () => {
                   </div>
                 </div>
 
-                {/* Submit Button - now only disabled by processing */}
+                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isProcessing}
@@ -838,7 +900,94 @@ const Withdraw = () => {
         </div>
       )}
 
-      {/* TRANSFER SIMULATION MODAL */}
+      {/* SECURITY PIN MODAL (for account reactivation) */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex justify-between items-start mb-3 sm:mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Key className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">Verificação de Segurança</h3>
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                  Sua conta foi reativada. Por favor, insira o PIN de transação para confirmar o saque.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPinModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="my-3 sm:my-4">
+              <label htmlFor="pinInput" className="block text-sm font-medium text-gray-700 mb-1">
+                PIN de Transação
+              </label>
+              <input
+                id="pinInput"
+                type="password"
+                placeholder="Digite o PIN de 6 dígitos"
+                value={pinCode}
+                onChange={(e) => setPinCode(e.target.value)}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border ${pinError ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base`}
+                autoFocus
+                maxLength="6"
+              />
+              {pinError && (
+                <div className="flex items-center gap-2 mt-2 text-red-600 text-xs sm:text-sm">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+              {pinAttempts > 0 && pinAttempts < 3 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Tentativas restantes: {3 - pinAttempts}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button
+                onClick={handleVerifyPin}
+                disabled={isVerifyingPin || pinAttempts >= 3}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
+              >
+                {isVerifyingPin ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Confirmar
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowPinModal(false)}
+                className="px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            {pinAttempts >= 3 && (
+              <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                <p className="text-center text-xs sm:text-sm text-red-600">
+                  <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 inline-block mr-1" />
+                  Muitas tentativas falhas. A transação foi cancelada. Tente novamente.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TRANSFER SIMULATION MODAL (failure or success) */}
       {showTransferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl text-center">
