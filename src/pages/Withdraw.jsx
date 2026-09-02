@@ -49,7 +49,7 @@ const Withdraw = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferProgress, setTransferProgress] = useState(0);
   const [transferStatus, setTransferStatus] = useState('pending'); // 'pending' | 'failed' | 'complete'
-  const [shouldFail] = useState(true); // set to false to simulate success
+  const [shouldFail] = useState(false); // set to false to simulate success
   const progressInterval = useRef(null);
 
   // PIN verification states
