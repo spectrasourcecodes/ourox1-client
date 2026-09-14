@@ -1,5 +1,5 @@
 export const SITE_NAME = "Ouro Invest";
-export const ADMIN_EMAIL = "support@procoin.com";
+export const ADMIN_EMAIL = "support@ouroinvest.com";
 export const ADMIN_WHATSAPP = "+856484639";
 export const ADMIN_TELEGRAM = "https://t.me/";
 
