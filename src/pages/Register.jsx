@@ -1,221 +1,247 @@
-// src/pages/Register.jsx
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Gift } from 'lucide-react';
-import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import { motion } from 'framer-motion';
+import { FaUser, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaPhone, FaGlobe } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import { SITE_NAME } from '../data/mockData';
+import { country } from '../data/countries';
+import { useAuth } from '../auth/userAuth';
 
 const Register = () => {
-  console.log("📝 Register component rendering");
   const navigate = useNavigate();
-  const { register, isAuthenticated } = useAuth();
+  const { register: registerUser, loading: authLoading } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-      fullName: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      referralCode: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    country: 'US',
+    password: '',
+    confirmPassword: '',
+    agreeTerms: false
   });
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Redirect if already authenticated
-  useEffect(() => {
-      if (isAuthenticated) {
-          console.log('📝 User is authenticated, redirecting to dashboard');
-          navigate('/dashboard');
-      }
-  }, [isAuthenticated, navigate]);
-
-  const validateForm = () => {
-      const newErrors = {};
-      if (!formData.fullName) newErrors.fullName = 'Nome completo é obrigatório';
-      if (!formData.email) {
-          newErrors.email = 'E-mail é obrigatório';
-      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-          newErrors.email = 'E-mail inválido';
-      }
-      if (!formData.password) {
-          newErrors.password = 'Senha é obrigatória';
-      } else if (formData.password.length < 8) {
-          newErrors.password = 'A senha deve ter pelo menos 8 caracteres';
-      }
-      if (formData.password !== formData.confirmPassword) {
-          newErrors.confirmPassword = 'As senhas não coincidem';
-      }
-      return newErrors;
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
+    });
   };
 
   const handleSubmit = async (e) => {
-      e.preventDefault();
+    e.preventDefault();
 
-      const newErrors = validateForm();
-      if (Object.keys(newErrors).length > 0) {
-          setErrors(newErrors);
-          toast.error("Por favor, corrija os erros no formulário");
-          return;
-      }
+    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
 
-      setIsLoading(true);
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("As senhas não coincidem");
+      return;
+    }
 
-      const result = await register({
-          fullName: formData.fullName,
-          email: formData.email,
-          password: formData.password,
-          referralCode: formData.referralCode || null,
-      });
+    if (formData.password.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
 
-      if (result.success) {
-          toast.success(result.message);
-          // The useEffect above will handle the redirect
-      } else {
-          toast.error(result.message);
-          setIsLoading(false);
-      }
-  };
+    if (!formData.agreeTerms) {
+      toast.error("Aceite os Termos e Condições para continuar");
+      return;
+    }
 
-  const handleChange = (e) => {
-      const { name, value } = e.target;
-      setFormData(prev => ({ ...prev, [name]: value }));
-      if (errors[name]) {
-          setErrors(prev => ({ ...prev, [name]: '' }));
-      }
+    setLoading(true);
+    const { fullName, email, phone, country, password } = formData;
+    const result = await registerUser({ fullName, email, phone, country, password });
+    setLoading(false);
+
+    if (result.success) {
+      toast.success("Cadastro realizado com sucesso!");
+      navigate("/dashboard");
+    } else {
+      toast.error(result.error || "Falha no cadastro");
+    }
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-gray-50 flex items-center justify-center py-6 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-4">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Crie sua conta</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Ou{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              faça login em uma conta existente
-            </Link>
-          </p>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute bottom-20 right-10 w-80 h-80 bg-purple-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <form className="space-y-4" onSubmit={handleSubmit}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-slate-700 max-h-[90vh] overflow-y-auto">
+          <div className="text-center mb-6">
+            <Link to="/">
+              <h1 className="text-3xl font-bold gradient-text">{SITE_NAME}</h1>
+            </Link>
+            <p className="text-slate-400 mt-2">Crie sua conta gratuita</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                Nome Completo
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Nome Completo *</label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="fullName"
-                  name="fullName"
                   type="text"
+                  name="fullName"
                   value={formData.fullName}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2.5 pl-10 border ${errors.fullName ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm`}
                   placeholder="João Silva"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
-              {errors.fullName && (
-                <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
-              )}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                E-mail
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">E-mail *</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="email"
-                  name="email"
                   type="email"
+                  name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2.5 pl-10 border ${errors.email ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm`}
-                  placeholder="voce@exemplo.com"
+                  placeholder="joao@exemplo.com"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
               </div>
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-600">{errors.email}</p>
-              )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Senha
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Telefone</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="password"
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="+5511999999999"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">País</label>
+              <div className="relative">
+                <FaGlobe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <select
+                  name="country"
+                  value={formData.country}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white focus:outline-none focus:border-blue-500 transition"
+                >
+                  {country.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Senha *</label>
+              <div className="relative">
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
-                  type="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2.5 pl-10 border ${errors.password ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm`}
                   placeholder="••••••••"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-600">{errors.password}</p>
-              )}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
-                Confirmar Senha
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Confirme a Senha *</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   name="confirmPassword"
-                  type="password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2.5 pl-10 border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm`}
                   placeholder="••••••••"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
-              {errors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
-              )}
             </div>
 
-            <div>
-              <label htmlFor="referralCode" className="block text-sm font-medium text-gray-700 mb-1">
-                Código de Indicação (Opcional)
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                name="agreeTerms"
+                checked={formData.agreeTerms}
+                onChange={handleChange}
+                className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-blue-600 focus:ring-blue-500"
+              />
+              <label className="ml-2 text-sm text-slate-400">
+                Eu concordo com os{' '}
+                <Link to="/terms" className="text-blue-400 hover:text-blue-300">
+                  Termos e Condições
+                </Link>
+                {' '}e com a{' '}
+                <Link to="/privacy" className="text-blue-400 hover:text-blue-300">
+                  Política de Privacidade
+                </Link>
               </label>
-              <div className="relative">
-                <Gift className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  id="referralCode"
-                  name="referralCode"
-                  type="text"
-                  value={formData.referralCode}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 pl-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                  placeholder="Digite o código de indicação"
-                />
-              </div>
             </div>
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2.5 px-6 rounded-xl transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              disabled={loading || authLoading}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Criando conta...' : 'Criar Conta'}
+              {loading || authLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  Criar Conta <FaArrowRight />
+                </>
+              )}
             </button>
           </form>
 
-          <p className="mt-4 text-xs text-center text-gray-500">
-            Ao criar uma conta, você concorda com nossos{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-500">Termos</a>{' '}
-            e{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-500">Política de Privacidade</a>
-          </p>
+          <div className="mt-6 text-center">
+            <p className="text-slate-400">
+              Já possui uma conta?{' '}
+              <Link to="/login" className="text-blue-400 hover:text-blue-300 font-semibold transition">
+                Entrar
+              </Link>
+            </p>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

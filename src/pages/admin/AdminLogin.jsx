@@ -1,171 +1,154 @@
-// src/pages/admin/Login.jsx
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Shield } from 'lucide-react';
-import { toast } from 'react-toastify';
-import axiosInstance from '../../utils/axios';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaArrowRight, FaShieldAlt } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import API from '../../utils/axios';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
+    password: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.email || !formData.password) {
+      toast.error('Please fill in all fields');
+      return;
+    }
 
+    setLoading(true);
+    
     try {
-      setIsLoading(true);
-
-      const { data } = await axiosInstance.post("/api/admin/login", {
+      const response = await API.post('/auth/login', {
         email: formData.email,
-        password: formData.password,
+        password: formData.password
       });
 
-      localStorage.setItem("adminToken", data.token);
-      localStorage.setItem("admin", JSON.stringify(data.admin));
+      const { user, token, refreshToken } = response.data.data;
 
-      toast.success(data.message);
-      navigate("/admin/dashboard");
+      // Check if user has admin role
+      if (user.role !== 'admin') {
+        toast.error('Access denied. Admin privileges required.');
+        setLoading(false);
+        return;
+      }
 
+      // Store auth data
+      localStorage.setItem('token', token);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      toast.success('Admin login successful!');
+      
+      // Small delay to allow AuthContext to verify token
+      setTimeout(() => {
+        navigate('/admin/dashboard', { replace: true });
+      }, 300);
+      
     } catch (error) {
-      const message = error.response?.data?.message || "Invalid credentials";
-      toast.error(message);
+      console.error('Admin login error:', error);
+      const errorMessage = error.response?.data?.message || 'Invalid admin credentials';
+      toast.error(errorMessage);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
-      {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-gray-900 to-gray-800 p-12 flex-col justify-between border-r border-gray-800">
-        <div>
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-white">Ark Admin</span>
-          </div>
-          <h1 className="text-4xl font-bold text-white mt-16 leading-tight">
-            Admin Dashboard<br />Control Panel
-          </h1>
-          <p className="text-gray-400 mt-4 text-lg">
-            Manage users, monitor activity, and configure system settings.
-          </p>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-red-600/20 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-white font-medium">User Management</p>
-              <p className="text-gray-400 text-sm">Full CRUD operations</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-red-600/20 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-white font-medium">Analytics</p>
-              <p className="text-gray-400 text-sm">Real-time metrics</p>
-            </div>
-          </div>
-        </div>
-
-        <p className="text-gray-500 text-sm">
-          © 2024 Ark Investment. Admin access only.
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-red-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob"></div>
+        <div className="absolute bottom-20 right-10 w-80 h-80 bg-orange-500 rounded-full mix-blend-lighten filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
       </div>
 
-      {/* Right Panel */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-900">
-        <div className="w-full max-w-md">
-          <div className="lg:hidden mb-8">
-            <div className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">Ouro Admin Panel</span>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative z-10 w-full max-w-md"
+      >
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-red-500/30">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-gradient-to-br from-red-600 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FaShieldAlt className="text-4xl text-white" />
             </div>
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white">Admin Sign In</h2>
-            <p className="text-gray-400 mt-2">Enter your credentials to access the admin panel</p>
+            <h1 className="text-2xl font-bold text-white">Admin Portal</h1>
+            <p className="text-slate-400 mt-2">Ark Administration</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                Email address
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Admin Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="email"
                   type="email"
-                  required
+                  name="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all text-white placeholder-gray-500"
-                  placeholder="admin@ouro.com"
+                  onChange={handleChange}
+                  placeholder="admin@ark.com"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                Password
-              </label>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input
-                  id="password"
-                  type="password"
-                  required
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
                   value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all text-white placeholder-gray-500"
+                  onChange={handleChange}
                   placeholder="••••••••"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-300"
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              disabled={loading}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-red-600 to-orange-600 text-white font-semibold hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Access Admin Panel
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  Admin Login <FaArrowRight />
                 </>
               )}
             </button>
-
-            <div className="mt-4 p-4 bg-gray-800 rounded-xl border border-gray-700">
-              <p className="text-sm text-gray-400 mb-2">Demo admin credentials:</p>
-              <div className="space-y-1 text-sm">
-                <p><span className="text-gray-300">Email:</span> admin@ouro.com</p>
-                <p><span className="text-gray-300">Password:</span> admin123</p>
-              </div>
-            </div>
           </form>
+
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <p className="text-xs text-center text-slate-500">
+              Use your admin credentials to access the admin panel
+            </p>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

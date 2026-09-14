@@ -1,305 +1,351 @@
-// src/components/Navbar.jsx
-import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Menu, X, Home, TrendingUp, Wallet, User, LogOut, 
-  CreditCard, LayoutDashboard, MessageCircle, 
-  Bell, Settings, RefreshCw, Eye, EyeOff
-} from 'lucide-react';
-import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+  FaHome, FaChartLine, FaHandHoldingUsd, FaWallet, FaUserCircle, 
+  FaSignOutAlt, FaHeadset, FaTelegram, FaWhatsapp, FaIdCard,
+  FaHistory, FaGift, FaUsers, FaBell, FaShieldAlt, FaCog, FaDollarSign,
+  FaComments, FaExternalLinkAlt
+} from 'react-icons/fa';
+import { HiMenu, HiX } from 'react-icons/hi';
+import Modal from 'react-modal';
+import { SITE_NAME, ADMIN_WHATSAPP, ADMIN_TELEGRAM } from '../data/mockData';
+import API from '../utils/axios';
+import { useAuth } from '../auth/userAuth';
+import { getCurrencySymbol } from '../utils/currency';
+
+Modal.setAppElement('#root');
+
+const customStyles = {
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    width: '90%',
+    maxWidth: '400px',
+    border: 'none',
+    borderRadius: '16px',
+    padding: '0',
+    background: 'transparent',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+    overflow: 'hidden'
+  },
+  overlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backdropFilter: 'blur(8px)',
+    zIndex: 1000
+  }
+};
 
 const Navbar = () => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [wallet, setWallet] = useState({ totalBalance: 0, balance: 0 });
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { isAuthenticated, logout, user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-  const [showBalance, setShowBalance] = useState(true);
   const location = useLocation();
 
-  // Check if current page is dashboard
-  const isDashboard = location.pathname === '/dashboard';
+  useEffect(() => {
+    fetchWallet();
+  }, []);
 
-  const supportLink = import.meta.env.VITE_SUPPORT_LINK
+  const fetchWallet = async () => {
+    try {
+      setLoading(true);
+      const response = await API.get('/wallet');
+      if (response.data.success) {
+        const data = response.data.data || response.data.wallet;
+        setWallet({
+          totalBalance: data.balance || data.totalBalance || 0,
+          balance: data.balance || 0,
+        });
+      } else {
+        console.warn('Falha ao buscar carteira:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar carteira:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const navLinks = isAuthenticated ? [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, id: 'dashboard' },
-    { path: '/market', label: 'Market', icon: TrendingUp, id: 'market' },
-    { path: '/invest', label: 'Invest', icon: TrendingUp, id: 'invest' },
-    { path: '/withdraw', label: 'Withdraw', icon: Wallet, id: 'withdraw' },
-    { path: '/profile', label: 'Profile', icon: User, id: 'profile' },
-    { 
-      path: supportLink, 
-      label: 'Support', 
-      icon: MessageCircle, 
-      external: true,
-      id: 'support'
-    },
-  ] : [
-    { path: '/', label: 'Home', icon: Home, id: 'home' },
-    { path: '/market', label: 'Market', icon: TrendingUp, id: 'market' },
-    { path: '/login', label: 'Login', icon: User, id: 'login' },
-    { path: '/register', label: 'Register', icon: CreditCard, id: 'register' },
-    { 
-      path: supportLink, 
-      label: 'Support', 
-      icon: MessageCircle, 
-      external: true,
-      id: 'support'
-    },
+  const navLinks = [
+    { path: '/dashboard', label: 'Painel', icon: FaChartLine },
+    { path: '/withdraw', label: 'Sacar', icon: FaWallet },
+    { path: '/transactions', label: 'Transações', icon: FaHistory },
+    { path: '/plans', label: 'Planos de Invest.', icon: FaDollarSign },
+    { path: '/notifications', label: 'Notificações', icon: FaBell },
+    { path: '/kyc', label: 'Verificação KYC', icon: FaIdCard },
+    { path: '/referrals', label: 'Indicações', icon: FaUsers },
+    { path: '/profile', label: 'Perfil', icon: FaUserCircle },
+    { path: '/security', label: 'Segurança', icon: FaShieldAlt },
   ];
 
-  const handleLogout = async () => {
-    try {
-      logout();
-      toast.success("Logout successful");
-      navigate("/login");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Logout failed");
-    }
+  const handleLogout = () => {
+    setIsLogoutModalOpen(true);
   };
 
-  // Format currency for balance display
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-    }).format(value || 0);
+  const confirmLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setIsLogoutModalOpen(false);
+    navigate('/');
+    window.location.reload();
   };
 
-  // Get user initials for avatar
-  const getUserInitials = () => {
-    if (user?.fullName) {
-      return user.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    }
-    return 'U';
+  const isActive = (path) => {
+    if (path === '/' && location.pathname !== '/') return false;
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  // ✅ Usa a função de símbolo de moeda compartilhada
+  const currencySymbol = getCurrencySymbol(user?.currency);
+
+  const displayBalance = loading ? '...' : `${currencySymbol}${wallet.totalBalance?.toLocaleString() || '0.00'}`;
+
+  const openLiveChat = () => {
+    window.open('https://chat-support1.onrender.com', '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (
     <>
-      {/* Desktop Navbar */}
-      <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 shadow-sm hidden md:block">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            {/* Always show app name on desktop */}
-            <Link to="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">Ouro</span>
-              <span className="text-sm text-gray-500">Invest</span>
-            </Link>
-            
-            <div className="flex items-center space-x-8">
-              {navLinks.map((link) => {
-                const Icon = link.icon;
-
-                if (link.external) {
-                  return (
-                    <a
-                      key={link.id}
-                      href={link.path}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-1 text-sm font-medium text-gray-600 hover:text-blue-600"
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{link.label}</span>
-                    </a>
-                  );
-                }
-
-                return (
-                  <Link
-                    key={link.id}
-                    to={link.path}
-                    className={`flex items-center space-x-1 text-sm font-medium transition-colors
-                      ${location.pathname === link.path 
-                        ? 'text-blue-600' 
-                        : 'text-gray-600 hover:text-blue-600'}`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{link.label}</span>
-                  </Link>
-                );
-              })}
-
-              {isAuthenticated && (
-                <>
-                  {/* Balance toggle on desktop */}
-                  {isDashboard && (
-                    <button 
-                      onClick={() => setShowBalance(!showBalance)}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      title={showBalance ? "Ocultar saldo" : "Mostrar saldo"}
-                    >
-                      {showBalance ? <Eye className="w-4 h-4 text-gray-600" /> : <EyeOff className="w-4 h-4 text-gray-600" />}
-                    </button>
-                  )}
-                  
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
-                    <Bell className="w-5 h-5 text-gray-600" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                  </button>
-                  
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Settings className="w-5 h-5 text-gray-600" />
-                  </button>
-                  
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Logout</span>
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Mobile Navbar - Always shows app name */}
-      <nav className="md:hidden fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 shadow-sm">
-        <div className="px-4 py-3 flex justify-between items-center">
-          {/* Left side - Always show app name */}
-          <Link to="/" className="flex items-center space-x-1">
-            <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">Ouro Invest</span>
-          </Link>
-
-          {/* Right side - Controls */}
-          <div className="flex items-center space-x-2">
-            {isAuthenticated && isDashboard && (
-              <button 
-                onClick={() => setShowBalance(!showBalance)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                {showBalance ? <Eye className="w-5 h-5 text-gray-600" /> : <EyeOff className="w-5 h-5 text-gray-600" />}
-              </button>
-            )}
-            
-            {isAuthenticated && (
-              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
-                <Bell className="w-5 h-5 text-gray-600" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
-            )}
-            
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+      {/* Barra Superior – altura fixa */}
+      <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-blue-800 to-indigo-900 shadow-lg z-40 h-16 flex items-center">
+        <div className="container mx-auto px-3 sm:px-4 flex items-center justify-between w-full">
+          {/* Seção esquerda - Hamburger + Logo */}
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden text-white p-2 hover:bg-white/10 rounded-lg transition"
             >
-              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isMobileMenuOpen ? <HiX size={24} /> : <HiMenu size={24} />}
+            </button>
+            
+            <Link to="/" className="flex items-center min-w-[120px]">
+              <h2 className="text-lg sm:text-xl font-bold text-white">{SITE_NAME}</h2>
+            </Link>
+          </div>
+          
+          {/* Seção direita */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button 
+              onClick={() => setIsSupportOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg flex items-center transition text-sm"
+            >
+              <FaHeadset className="mr-1 sm:mr-2 text-sm sm:text-base" />
+              <span className="hidden xs:inline">Suporte</span>
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Mobile Menu */}
-        {isOpen && (
-          <div className="bg-white border-t max-h-[80vh] overflow-y-auto">
-            <div className="px-4 py-2 space-y-1">
-              {/* User info */}
-              {isAuthenticated && (
-                <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 mb-2">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center text-white font-semibold text-sm">
-                    {getUserInitials()}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">{user?.fullName || 'Usuário'}</p>
-                    <p className="text-xs text-gray-500">Membro desde {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('pt-BR') : 'N/A'}</p>
-                  </div>
-                </div>
-              )}
-              
-              {navLinks.map((link) => {
-                const Icon = link.icon;
-
-                if (link.external) {
-                  return (
-                    <a
-                      key={link.id}
-                      href={link.path}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setIsOpen(false)}
-                      className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50"
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="font-medium">{link.label}</span>
-                    </a>
-                  );
-                }
-
-                return (
-                  <Link
-                    key={link.id}
-                    to={link.path}
-                    onClick={() => setIsOpen(false)}
-                    className={`flex items-center space-x-3 p-3 rounded-lg transition-colors
-                      ${location.pathname === link.path 
-                        ? 'bg-blue-50 text-blue-600' 
-                        : 'hover:bg-gray-50'}`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="font-medium">{link.label}</span>
-                  </Link>
-                );
-              })}
-
-              {isAuthenticated && (
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setIsOpen(false);
-                  }}
-                  className="w-full flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 text-red-600 mt-2 border-t border-gray-100 pt-3"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span className="font-medium">Logout</span>
-                </button>
-              )}
-            </div>
+      {/* Barra Lateral Desktop */}
+      <aside className="hidden lg:block fixed left-0 top-16 bottom-0 w-64 bg-slate-900 border-r border-slate-800 overflow-y-auto z-30">
+        <div className="p-4">
+          <div className="mb-8 p-4 bg-gradient-to-br from-blue-600/20 to-purple-600/20 rounded-2xl">
+            <p className="text-slate-400 text-sm">Saldo Total</p>
+            <p className="text-2xl font-bold text-white">{displayBalance}</p>
           </div>
-        )}
-      </nav>
-
-      {/* Mobile Bottom Navigation */}
-      {isAuthenticated && (
-        <div className="md:hidden fixed bottom-0 w-full bg-white border-t z-40">
-          <div className="flex justify-around items-center py-2">
-            {navLinks.slice(0, 5).map((link) => {
+          
+          <nav className="space-y-1">
+            {navLinks.map((link) => {
               const Icon = link.icon;
-
-              if (link.external) {
-                return (
-                  <a
-                    key={link.id + '-bottom'}
-                    href={link.path}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-col items-center p-2 text-gray-600"
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-xs mt-1">{link.label}</span>
-                  </a>
-                );
-              }
-
               return (
                 <Link
-                  key={link.id + '-bottom'}
+                  key={link.path}
                   to={link.path}
-                  className={`flex flex-col items-center p-2 transition-colors
-                    ${location.pathname === link.path 
-                      ? 'text-blue-600' 
-                      : 'text-gray-600'}`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                    isActive(link.path)
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-xs mt-1">{link.label}</span>
+                  <Icon size={18} />
+                  <span>{link.label}</span>
                 </Link>
               );
             })}
+            
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/20 transition-all duration-200"
+            >
+              <FaSignOutAlt size={18} />
+              <span>Sair</span>
+            </button>
+          </nav>
+        </div>
+      </aside>
+
+      {/* Menu Mobile */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 lg:hidden pt-16">
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute top-4 right-4 text-white p-2"
+          >
+            <HiX size={26} />
+          </button>
+
+          <div className="flex flex-col h-[calc(100vh-4rem)] px-4 py-4">
+            <nav className="flex-1 space-y-1 mt-2">
+              {navLinks
+                .filter(link => link.path !== "/")
+                .map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                        isActive(link.path)
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      <span className="font-medium">{link.label}</span>
+                    </Link>
+                  );
+                })}
+            </nav>
+
+            <div className="pt-3 border-t border-slate-700">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-red-400 hover:bg-red-500/20 transition-all duration-200"
+              >
+                <FaSignOutAlt size={18} />
+                <span className="font-medium">Sair</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Navegação Inferior Mobile */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 flex justify-around py-2 z-50 lg:hidden h-16">
+        <Link to="/dashboard" className="flex flex-col items-center justify-center p-2">
+          <FaChartLine className="text-lg text-slate-400" />
+          <span className="text-xs mt-1 text-slate-400">Painel</span>
+        </Link>
+        <Link to="/plans" className="flex flex-col items-center justify-center p-2">
+          <FaHandHoldingUsd className="text-lg text-slate-400" />
+          <span className="text-xs mt-1 text-slate-400">Investir</span>
+        </Link>
+        <Link to="/withdraw" className="flex flex-col items-center justify-center p-2">
+          <FaWallet className="text-lg text-slate-400" />
+          <span className="text-xs mt-1 text-slate-400">Sacar</span>
+        </Link>
+        <Link to="/transactions" className="flex flex-col items-center justify-center p-2">
+          <FaHistory className="text-lg text-slate-400" />
+          <span className="text-xs mt-1 text-slate-400">Histórico</span>
+        </Link>
+        <Link to="/profile" className="flex flex-col items-center justify-center p-2">
+          <FaUserCircle className="text-lg text-slate-400" />
+          <span className="text-xs mt-1 text-slate-400">Perfil</span>
+        </Link>
+      </nav>
+
+      {/* Modal de Logout */}
+      <Modal
+        isOpen={isLogoutModalOpen}
+        style={customStyles}
+        onRequestClose={() => setIsLogoutModalOpen(false)}
+        contentLabel="Confirmação de Logout"
+      >
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl text-white">
+          <h3 className="text-xl font-bold mb-4 text-center">Confirmação de Logout</h3>
+          <p className="mb-6 text-slate-300 text-center">Tem certeza que deseja sair?</p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => setIsLogoutModalOpen(false)}
+              className="bg-slate-600 hover:bg-slate-500 py-2 px-6 rounded-lg transition duration-300"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmLogout}
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 py-2 px-6 rounded-lg transition duration-300"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Suporte */}
+      <Modal
+        isOpen={isSupportOpen}
+        style={customStyles}
+        onRequestClose={() => setIsSupportOpen(false)}
+        contentLabel="Opções de Suporte"
+      >
+        <div className="bg-gradient-to-br from-blue-900 to-indigo-900 p-6 rounded-xl text-white">
+          <h3 className="text-xl font-bold mb-6 text-center">Suporte ao Cliente</h3>
+          
+          <div className="space-y-4 mb-6">
+            <button
+              onClick={openLiveChat}
+              className="w-full flex items-center p-4 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg group"
+            >
+              <div className="bg-white/20 p-3 rounded-full mr-4 group-hover:scale-110 transition">
+                <FaComments className="text-2xl" />
+              </div>
+              <div className="flex-1 text-left">
+                <h4 className="font-semibold">Chat ao Vivo</h4>
+                <p className="text-sm text-white/80">Converse com o suporte instantaneamente</p>
+              </div>
+              <FaExternalLinkAlt className="text-white/60 text-sm" />
+            </button>
+
+            <a 
+              href={ADMIN_TELEGRAM} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center p-4 bg-gradient-to-r from-teal-600 to-cyan-600 rounded-xl hover:from-teal-700 hover:to-cyan-700 transition-all duration-300 shadow-lg"
+            >
+              <div className="bg-white/20 p-3 rounded-full mr-4">
+                <FaTelegram className="text-2xl" />
+              </div>
+              <div>
+                <h4 className="font-semibold">Telegram</h4>
+                <p className="text-sm text-white/80">@suporte</p>
+              </div>
+            </a>
+            
+            <a 
+              href={`https://wa.me/${ADMIN_WHATSAPP}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center p-4 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg"
+            >
+              <div className="bg-white/20 p-3 rounded-full mr-4">
+                <FaWhatsapp className="text-2xl" />
+              </div>
+              <div>
+                <h4 className="font-semibold">WhatsApp</h4>
+                <p className="text-sm text-white/80">{ADMIN_WHATSAPP}</p>
+              </div>
+            </a>
+          </div>
+          
+          <button
+            onClick={() => setIsSupportOpen(false)}
+            className="w-full py-3 px-4 rounded-lg font-medium bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 transition duration-300"
+          >
+            Fechar
+          </button>
+        </div>
+      </Modal>
     </>
   );
 };

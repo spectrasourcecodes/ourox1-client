@@ -1,200 +1,102 @@
-// src/App.jsx
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-
-// Layout Components
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import SimpleFooter from './components/SimpleFooter';
-import InstallPrompt from './components/InstallPrompt';
-
-// User Pages
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Home from './pages/Home';
-import Register from './pages/Register';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Invest from './pages/Invest';
+import Deposit from './pages/Deposit';
 import Withdraw from './pages/Withdraw';
-import KYC from './pages/KYC';
+import Transactions from './pages/Transactions';
+import InvestmentPlans from './pages/InvestmentPlans';
 import Profile from './pages/Profile';
+import Support from './pages/Support';
+import Security from './pages/Security';
 import Market from './pages/Market';
+import Referrals from './pages/Referrals';
+import LivePayouts from './pages/LivePayouts';
+import Notifications from './pages/Notifications';
+import Settings from './pages/Settings';
+import PaymentProof from './pages/PaymentProof';
+import ForgotPassword from './pages/ForgotPassword';
+import KYC from './pages/KYC';
 
-// Admin Pages
+// Admin imports
 import AdminLogin from './pages/admin/AdminLogin';
+import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUsers from './pages/admin/AdminUsers';
+import UserManagement from './pages/admin/UserManagement';
+import DepositManagement from './pages/admin/DepositManagement';
+import WithdrawalManagement from './pages/admin/WithdrawalManagement';
 import AdminProfile from './pages/admin/AdminProfile';
-import KycReceipts from './pages/admin/KycReceipts';
+import AdminTransactions from './pages/admin/AdminTransactions';
+import AdminInvestmentPlans from './pages/admin/AdminInvestmentPlans';
+import WalletManagement from './pages/admin/WalletManagement';
+import PaymentProofs from './pages/admin/PaymentProofs';
+import AdminWallets from './pages/admin/AdminWallets';
 
-// maintenance page
-import Maintenance from "./pages/Maintenance";
-// set maintenance
-const maintenanceMode = false;
-
-// Protected Route Components
-const ProtectedRoute = ({ children, isAllowed, redirectTo }) => {
-  return isAllowed ? children : <Navigate to={redirectTo} />;
-};
-
-const AdminRoute = ({ children }) => {
-  const adminToken = localStorage.getItem('adminToken');
-  return adminToken ? children : <Navigate to="/admin/login" />;
-};
+// Protected route components
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [kycStatus, setKycStatus] = useState('pending');
-  const location = useLocation();
-
-  // Check authentication status on mount and route change
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    setIsAuthenticated(!!token);
-  }, [location]);
-
-  // Determine if current route is admin route
-  const isAdminRoute = location.pathname.startsWith('/admin');
-  
-  // Determine which footer to show based on route
-  const showFullFooter = location.pathname === '/' && !isAdminRoute;
-  const showSimpleFooter = !['/', '/login', '/register', '/admin/login'].includes(location.pathname) && !isAdminRoute;
-  const showNoFooter = ['/login', '/register', '/admin/login'].includes(location.pathname) || isAdminRoute;
-
   return (
-    <>
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        {/* Only show Navbar for non-admin routes */}
-        {!isAdminRoute && <Navbar isAuthenticated={isAuthenticated} />}
+    <Router>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#1e293b',
+            color: '#fff',
+            borderRadius: '12px',
+          },
+        }}
+      />
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         
-    
-        <main className="flex-grow pt-16 md:pt-0">
+        {/* Protected User Routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/deposit" element={<Deposit />} />
+          <Route path="/withdraw" element={<Withdraw />} />
+          <Route path="/transactions" element={<Transactions />} />
+          <Route path="/plans" element={<InvestmentPlans />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/security" element={<Security />} />
+          <Route path="/market" element={<Market />} />
+          <Route path="/referrals" element={<Referrals />} />
+          <Route path="/payouts" element={<LivePayouts />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/kyc" element={<KYC />} />
+          <Route path="/payment-proof" element={<PaymentProof />} />
+        </Route>
 
-          {maintenanceMode ? (
-
-            <Routes>
-              <Route path="/maintenance" element={<Maintenance />} />
-              <Route path="*" element={<Navigate to="/maintenance" replace />} />
-            </Routes>
-
-          ) : (
-
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<Home />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/market" element={<Market />} />
-
-              {/* Protected User Routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute isAllowed={isAuthenticated} redirectTo="/login">
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/invest"
-                element={
-                  <ProtectedRoute isAllowed={isAuthenticated} redirectTo="/login">
-                    <Invest />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/withdraw"
-                element={
-                  <ProtectedRoute isAllowed={isAuthenticated} redirectTo="/login">
-                    <Withdraw kycStatus={kycStatus} />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/kyc"
-                element={
-                  <ProtectedRoute isAllowed={isAuthenticated} redirectTo="/login">
-                    <KYC
-                      kycStatus={kycStatus}
-                      setKycStatus={setKycStatus}
-                    />
-                  </ProtectedRoute>
-                }
-              />
-
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute isAllowed={isAuthenticated} redirectTo="/login">
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-
-              <Route
-                path="/admin/dashboard"
-                element={
-                  <AdminRoute>
-                    <AdminDashboard />
-                  </AdminRoute>
-                }
-              />
-
-              <Route
-                path="/admin/users"
-                element={
-                  <AdminRoute>
-                    <AdminUsers />
-                  </AdminRoute>
-                }
-              />
-
-              <Route
-                path="/admin/profile"
-                element={
-                  <AdminRoute>
-                    <AdminProfile />
-                  </AdminRoute>
-                }
-              />
-
-              <Route
-                path="/admin/kyc-receipts"
-                element={
-                  <AdminRoute>
-                    <KycReceipts />
-                  </AdminRoute>
-                }
-              />
-
-              {/* Catch all */}
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-
-          )}
-
-        </main>
-        
-        {/* Conditional Footer Rendering - only for non-admin routes */}
-        {!isAdminRoute && showFullFooter && <Footer />}
-        {!isAdminRoute && showSimpleFooter && <SimpleFooter />}
-        
-        <InstallPrompt />
-        <ToastContainer 
-          position="top-center" 
-          autoClose={4000}
-          toastClassName="rounded-xl"
-        />
-      </div>
-    </>
+        {/* Admin Routes */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<UserManagement />} />
+            <Route path="deposits" element={<DepositManagement />} />
+            <Route path="withdrawals" element={<WithdrawalManagement />} />
+            <Route path="transactions" element={<AdminTransactions />} />
+            <Route path="plans" element={<AdminInvestmentPlans />} />
+            <Route path="profile" element={<AdminProfile />} />
+            <Route path="wallets" element={<WalletManagement />} />
+            <Route path="payment-proofs" element={<PaymentProofs />} />
+            <Route path="admin-wallets" element={<AdminWallets />} />
+          </Route>
+        </Route>
+      </Routes>
+    </Router>
   );
 }
 

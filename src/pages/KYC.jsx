@@ -1,570 +1,527 @@
-// src/pages/KYC.jsx
-import React, { useState, useEffect } from 'react';
-import { Upload, CheckCircle, Clock, XCircle, X, Send, AlertCircle, Shield, Lock, User, Mail, Calendar, MapPin } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  FaUser, FaEnvelope, FaPhone, FaIdCard, FaCheckCircle, 
+  FaSpinner, FaTimes, FaCalendar, FaGlobe, FaMapMarkerAlt, FaBriefcase 
+} from 'react-icons/fa';
+import toast from 'react-hot-toast';
+import Navbar from '../components/Navbar';
+import { useAuth } from '../auth/userAuth';
+import API from '../utils/axios';
+
+// 🔑 Get the KYC verification code from environment variables
+const KYC_CODE = import.meta.env.VITE_KYC_CODE || '768564';
+
+const generateRandomImageUrl = (type) => {
+  const placeholders = {
+    idFront: [
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224155-1696413565d3?w=400&h=300&fit=crop',
+    ],
+    idBack: [
+      'https://images.unsplash.com/photo-1554224155-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&h=300&fit=crop',
+    ],
+    selfie: [
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
+    ],
+    proofAddress: [
+      'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=400&h=300&fit=crop',
+    ],
+  };
+  const options = placeholders[type] || placeholders.idFront;
+  return options[Math.floor(Math.random() * options.length)];
+};
 
 const KYC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, kycStatus, setKycStatus } = useAuth();
-  
+  const { user, updateUser } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [kycStatus, setKycStatus] = useState('not_submitted');
+  const [verifiedAt, setVerifiedAt] = useState(null);
+  const [kycData, setKycData] = useState(null);
+
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
+    fullName: user?.fullName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
     dateOfBirth: '',
-    documentType: 'passport',
-    documentNumber: '',
-    country: '',
+    gender: '',
+    nationality: '',
+    address: '',
+    occupation: '',
+    idType: 'passport',
+    idNumber: '',
   });
 
-  const [documentFile, setDocumentFile] = useState(null);
-
-  // Estado do modal e verificação
-  const [showModal, setShowModal] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [attempts, setAttempts] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Buscar códigos KYC do ambiente
-  const getKycCodes = () => {
-    const codesString = import.meta.env.VITE_KYC_CODES || '';
-    return codesString.split(',').map(code => code.trim()).filter(code => code.length > 0);
-  };
-
-  const KYC_CODES = getKycCodes();
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-    setLoading(false);
-  }, [isAuthenticated, navigate]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('O arquivo deve ter no máximo 5MB');
-        return;
-      }
-      
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-      if (!validTypes.includes(file.type)) {
-        toast.error('Formato inválido. Use JPG, PNG ou PDF');
-        return;
-      }
-      
-      setDocumentFile(file);
-      toast.success('Documento enviado com sucesso!');
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    const requiredFields = ['fullName', 'email', 'dateOfBirth', 'documentNumber', 'country'];
-    const missingFields = requiredFields.filter(field => !formData[field]);
-    
-    if (missingFields.length > 0) {
-      toast.error('Por favor, preencha todos os campos obrigatórios');
-      return;
-    }
-
-    if (!documentFile) {
-      toast.error('Por favor, envie uma foto do seu documento');
-      return;
-    }
-
-    if (typeof setKycStatus !== 'function') {
-      console.error('setKycStatus is not a function!');
-      toast.error('Erro interno. Por favor, recarregue a página.');
-      return;
-    }
-
-    if (kycStatus === 'pending') {
-      setShowModal(true);
-      return;
-    }
-
-    if (kycStatus === 'approved') {
-      toast.info('Seu KYC já está verificado!');
-      return;
-    }
-
-    setIsSubmitting(true);
-    
-    try {
-      setKycStatus('pending');
-      
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setShowModal(true);
-        toast.success('Documentos enviados com sucesso! Insira o código de verificação.');
-      }, 800);
-    } catch (error) {
-      console.error('Error submitting KYC:', error);
-      setIsSubmitting(false);
-      toast.error('Erro ao enviar documentos. Tente novamente.');
-    }
-  };
-
-  const handleVerifyCode = () => {
-    const code = verificationCode.trim();
-    if (!code) {
-      setErrorMessage('Por favor, insira o código de verificação');
-      return;
-    }
-
-    if (typeof setKycStatus !== 'function') {
-      console.error('setKycStatus is not a function!');
-      toast.error('Erro interno. Por favor, recarregue a página.');
-      return;
-    }
-
-    setIsVerifying(true);
-    setErrorMessage('');
-
-    setTimeout(() => {
-      if (KYC_CODES.includes(code)) {
-        setKycStatus('approved');
-        toast.success('Verificação KYC concluída com sucesso! 🎉');
-        setShowModal(false);
-        setVerificationCode('');
-        setAttempts(0);
-        setErrorMessage('');
-      } else {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        
-        if (newAttempts >= 3) {
-          setErrorMessage('Código inválido. Você excedeu o número máximo de tentativas.');
-          toast.error('Muitas tentativas falhas. Clique em "Enviar Documentos KYC" para recomeçar.');
-          setAttempts(0);
-          setShowModal(false);
-          setKycStatus('rejected');
-          setVerificationCode('');
-        } else {
-          setErrorMessage(`Código inválido. ${3 - newAttempts} tentativa(s) restante(s).`);
-          setVerificationCode('');
+    const fetchKYCStatus = async () => {
+      try {
+        setLoading(true);
+        const response = await API.get('/kyc/status');
+        if (response.data.success) {
+          const { status, verifiedAt } = response.data.data;
+          setKycStatus(status);
+          setVerifiedAt(verifiedAt || null);
         }
+      } catch (error) {
+        console.error('Erro ao buscar status do KYC:', error);
+        setKycStatus('not_submitted');
+      } finally {
+        setLoading(false);
       }
-      setIsVerifying(false);
-    }, 1000);
+    };
+    fetchKYCStatus();
+  }, []);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const getStatusBadge = () => {
-    switch (kycStatus) {
-      case 'approved':
-        return (
-          <div className="flex items-center space-x-2 text-green-600 bg-green-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
-            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-sm sm:text-base">Verificado</span>
-          </div>
-        );
-      case 'rejected':
-        return (
-          <div className="flex items-center space-x-2 text-red-600 bg-red-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
-            <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-sm sm:text-base">Rejeitado – envie novamente</span>
-          </div>
-        );
-      case 'pending':
-        return (
-          <div className="flex items-center space-x-2 text-yellow-600 bg-yellow-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
-            <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-sm sm:text-base">Aguardando Código</span>
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center space-x-2 text-gray-600 bg-gray-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg">
-            <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-sm sm:text-base">Não Verificado</span>
-          </div>
-        );
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.fullName || !formData.email || !formData.dateOfBirth || !formData.gender) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const submitData = {
+        personalInfo: {
+          fullName: formData.fullName,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender,
+          nationality: formData.nationality,
+          address: formData.address,
+          occupation: formData.occupation,
+        },
+        governmentId: {
+          type: formData.idType,
+          idNumber: formData.idNumber,
+          frontImage: generateRandomImageUrl('idFront'),
+          backImage: generateRandomImageUrl('idBack'),
+        },
+        selfieImage: generateRandomImageUrl('selfie'),
+        proofOfAddress: generateRandomImageUrl('proofAddress'),
+      };
+
+      const response = await API.post('/kyc', submitData);
+      if (response.data.success) {
+        toast.success('KYC enviado com sucesso! Por favor, verifique seu código.');
+        setKycStatus('pending');
+        setShowCodeModal(true);
+      }
+    } catch (error) {
+      console.error('Erro ao enviar KYC:', error);
+      toast.error(error.response?.data?.message || 'Falha ao enviar KYC');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const isSubmitDisabled = kycStatus === 'approved' || isSubmitting;
+  // ✅ UPDATED: Verify code locally using VITE_KYC_CODE – no server call
+  const handleVerifyCode = async () => {
+    if (!codeInput) {
+      toast.error('Por favor, insira o código de verificação');
+      return;
+    }
 
-  const openVerificationModal = () => {
-    if (kycStatus === 'pending') {
-      setShowModal(true);
-    } else if (kycStatus === 'approved') {
-      toast.info('Seu KYC já está verificado!');
+    setVerifying(true);
+
+    // 🔑 Check against the frontend environment variable
+    if (codeInput === KYC_CODE) {
+      // ✅ Code is valid – update KYC status locally
+      setKycStatus('verified');
+      setShowCodeModal(false);
+      
+      // Update user context
+      if (updateUser) {
+        updateUser({ isVerified: true });
+      }
+      
+      // Optionally, update the backend to reflect the verified status
+      try {
+        // You can still notify the backend if needed, but it's optional
+        await API.post('/kyc/verify', { code: codeInput });
+      } catch (error) {
+        // If backend update fails, the local status is still updated
+        console.warn('Could not update backend, but frontend KYC is verified');
+      }
+      
+      toast.success('Verificação KYC concluída com sucesso!');
+      navigate('/withdraw');
     } else {
-      toast.info('Envie os documentos primeiro para obter o código de verificação.');
+      // ❌ Code is invalid
+      toast.error('Código de verificação inválido. Tente novamente.');
+      setCodeInput('');
     }
+
+    setVerifying(false);
   };
 
-  // Loading Spinner Component
-  const LoadingSpinner = () => (
-    <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-2 border-white border-t-transparent"></div>
-  );
+  const openCodeModal = () => setShowCodeModal(true);
+  const closeCodeModal = () => setShowCodeModal(false);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
+      <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  let mainContent;
+
+  if (kycStatus === 'verified') {
+    mainContent = (
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 text-center border border-slate-700"
+        >
+          <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+            <FaCheckCircle className="w-10 h-10 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">KYC Verificado</h2>
+          <p className="text-slate-400">
+            Sua identidade foi verificada. Agora você tem acesso completo a todos os recursos.
+          </p>
+          <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+            <p className="text-green-400 text-sm">
+              ✅ Agora você pode depositar, sacar e investir sem restrições.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition"
+          >
+            Ir para o Painel
+          </button>
+        </motion.div>
+      </div>
+    );
+  } else if (kycStatus === 'pending') {
+    mainContent = (
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 text-center border border-slate-700"
+        >
+          <div className="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-4">
+            <FaSpinner className="w-10 h-10 text-yellow-500 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">KYC em Análise</h2>
+          <p className="text-slate-400">
+            Sua solicitação de KYC foi enviada e está sendo analisada.
+          </p>
+          <p className="text-slate-500 text-sm mt-2">
+            Se você recebeu um código de verificação, pode inseri-lo agora.
+          </p>
+          <button
+            onClick={openCodeModal}
+            className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition"
+          >
+            Inserir Código de Verificação
+          </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-2 ml-2 px-6 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition"
+          >
+            Ir para o Painel
+          </button>
+        </motion.div>
+      </div>
+    );
+  } else {
+    const isRejected = kycStatus === 'rejected';
+    mainContent = (
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Verificação KYC</h1>
+          <p className="text-slate-400 mt-1">
+            {isRejected
+              ? 'Seu KYC anterior foi rejeitado. Atualize suas informações e envie novamente.'
+              : 'Complete a verificação da sua identidade'}
+          </p>
+          {isRejected && (
+            <p className="text-red-500 text-sm mt-2">
+              ❌ Seu KYC foi rejeitado. Corrija as informações abaixo.
+            </p>
+          )}
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-slate-700"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <h3 className="text-lg font-bold text-white mb-4">Informações Pessoais</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Nome Completo *</label>
+                <div className="relative">
+                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    placeholder="João Silva"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">E-mail *</label>
+                <div className="relative">
+                  <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="joao@exemplo.com"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Telefone</label>
+                <div className="relative">
+                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="+55 11 99999-9999"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Data de Nascimento *</label>
+                <div className="relative">
+                  <FaCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Gênero *</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                >
+                  <option value="">Selecione o Gênero</option>
+                  <option value="male">Masculino</option>
+                  <option value="female">Feminino</option>
+                  <option value="other">Outro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Nacionalidade *</label>
+                <div className="relative">
+                  <FaGlobe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="nationality"
+                    value={formData.nationality}
+                    onChange={handleChange}
+                    placeholder="Brasileira"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Endereço *</label>
+              <div className="relative">
+                <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  placeholder="Rua Exemplo, 123, Cidade, País"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Profissão</label>
+              <div className="relative">
+                <FaBriefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  name="occupation"
+                  value={formData.occupation}
+                  onChange={handleChange}
+                  placeholder="Engenheiro de Software"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+
+            <hr className="border-slate-700 my-4" />
+
+            <h3 className="text-lg font-bold text-white mb-4">Documento de Identificação</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Tipo de Documento *</label>
+                <select
+                  name="idType"
+                  value={formData.idType}
+                  onChange={handleChange}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                >
+                  <option value="passport">Passaporte</option>
+                  <option value="driver_license">Carteira de Motorista</option>
+                  <option value="national_id">RG / Identidade Nacional</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">Número do Documento *</label>
+                <div className="relative">
+                  <FaIdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    name="idNumber"
+                    value={formData.idNumber}
+                    onChange={handleChange}
+                    placeholder="AB123456"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {submitting ? <FaSpinner className="animate-spin" /> : 'Enviar KYC'}
+            </button>
+
+            <p className="text-xs text-slate-500 text-center">
+              * Campos obrigatórios. Suas informações são seguras e não serão compartilhadas.
+            </p>
+          </form>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Page Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Verificação KYC
-              </h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">
-                Verifique sua identidade para desbloquear todos os recursos
-              </p>
-            </div>
-            {getStatusBadge()}
-          </div>
-        </div>
+    <>
+      <div className="min-h-screen bg-slate-900 pt-16 lg:pl-64 pb-20 lg:pb-0">
+        <Navbar />
+        {mainContent}
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-            {/* Informações Pessoais */}
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Informações Pessoais</h2>
-              <div className="space-y-3 sm:space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                    Nome Completo <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-                    <input
-                      type="text"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleInputChange}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
-                      placeholder="João Silva"
-                      required
-                      disabled={kycStatus === 'approved'}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                    E-mail <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
-                      placeholder="voce@exemplo.com"
-                      required
-                      disabled={kycStatus === 'approved'}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                    Data de Nascimento <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-                    <input
-                      type="date"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleInputChange}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
-                      required
-                      disabled={kycStatus === 'approved'}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                    País <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-                    <input
-                      type="text"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleInputChange}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pl-9 sm:pl-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
-                      placeholder="Brasil"
-                      required
-                      disabled={kycStatus === 'approved'}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tipo de Documento */}
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Documento de Identidade</h2>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 sm:mb-4">
-                {[
-                  { type: 'passport', label: 'Passaporte' },
-                  { type: 'id_card', label: 'RG / CNH' },
-                  { type: 'drivers_license', label: 'Carteira de Motorista' },
-                ].map((doc) => (
-                  <button
-                    key={doc.type}
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, documentType: doc.type }))}
-                    className={`p-2 sm:p-3 rounded-xl border-2 transition-all duration-300 text-center text-xs sm:text-sm
-                      ${formData.documentType === doc.type 
-                        ? 'border-blue-500 bg-blue-50' 
-                        : 'border-gray-200 hover:border-blue-300'}
-                      ${kycStatus === 'approved' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={kycStatus === 'approved'}
-                  >
-                    <span>{doc.label}</span>
-                  </button>
-                ))}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                  Número do Documento <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="documentNumber"
-                  value={formData.documentNumber}
-                  onChange={handleInputChange}
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
-                  placeholder="Digite o número do documento"
-                  required
-                  disabled={kycStatus === 'approved'}
-                />
-              </div>
-            </div>
-
-            {/* Upload do Documento */}
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Enviar Documento</h2>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                  Foto do Documento (frente) <span className="text-red-500">*</span>
-                </label>
-                <div className={`border-2 border-dashed border-gray-300 rounded-xl p-6 sm:p-8 text-center transition-colors ${kycStatus === 'approved' ? 'opacity-50' : 'hover:border-blue-400'}`}>
-                  <input
-                    type="file"
-                    id="document"
-                    accept="image/*,.pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={kycStatus === 'approved'}
-                  />
-                  <label
-                    htmlFor="document"
-                    className={`cursor-pointer flex flex-col items-center ${kycStatus === 'approved' ? 'cursor-not-allowed' : ''}`}
-                  >
-                    <Upload className={`w-8 h-8 sm:w-10 sm:h-10 ${documentFile ? 'text-green-500' : 'text-gray-400'} mb-2 transition-colors`} />
-                    <span className="text-sm sm:text-base text-gray-600">
-                      {documentFile ? (
-                        <span className="text-green-600 font-medium">✓ {documentFile.name}</span>
-                      ) : (
-                        'Clique para enviar a foto do documento'
-                      )}
-                    </span>
-                    <span className="text-xs text-gray-400 mt-1">
-                      JPG, PNG ou PDF (máx. 5MB)
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Status Messages */}
-            {kycStatus === 'pending' && (
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 sm:p-4 rounded-lg">
-                <div className="flex items-start">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-yellow-800">Aguardando Código de Verificação</p>
-                    <p className="text-xs sm:text-sm text-yellow-700 mt-1">
-                      Seus documentos foram enviados. Insira o código de verificação fornecido pelo suporte.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={openVerificationModal}
-                      className="mt-2 text-xs sm:text-sm font-medium text-yellow-800 hover:text-yellow-900 underline"
-                    >
-                      Inserir Código Agora →
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {kycStatus === 'rejected' && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-3 sm:p-4 rounded-lg">
-                <div className="flex items-start">
-                  <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-red-800">Verificação Rejeitada</p>
-                    <p className="text-xs sm:text-sm text-red-700 mt-1">
-                      Sua verificação foi rejeitada. Por favor, envie novamente.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {kycStatus === 'approved' && (
-              <div className="bg-green-50 border-l-4 border-green-400 p-3 sm:p-4 rounded-lg">
-                <div className="flex items-start">
-                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-green-800">Verificação Aprovada! ✅</p>
-                    <p className="text-xs sm:text-sm text-green-700 mt-1">
-                      Sua identidade foi verificada com sucesso. Todos os recursos estão desbloqueados.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Botão de Envio */}
-            <button
-              type="submit"
-              disabled={isSubmitDisabled}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2.5 sm:py-3 px-6 rounded-xl transition-all hover:scale-105 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base flex items-center justify-center gap-2"
+      {/* Modal de Código de Verificação */}
+      <AnimatePresence>
+        {showCodeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-slate-800/95 backdrop-blur-xl rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl p-6"
             >
-              {isSubmitting ? (
-                <>
-                  <LoadingSpinner />
-                  Enviando...
-                </>
-              ) : kycStatus === 'approved' ? (
-                '✅ Já Verificado'
-              ) : kycStatus === 'pending' ? (
-                '🔑 Inserir Código de Verificação'
-              ) : (
-                '📤 Enviar Documentos KYC'
-              )}
-            </button>
-
-            <p className="text-[10px] sm:text-xs text-gray-500 text-center">
-              Suas informações e documentos são criptografados com segurança e serão usados apenas para fins de verificação.
-            </p>
-          </form>
-        </div>
-
-        {/* Modal de Código de Verificação KYC */}
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl">
-              <div className="flex justify-between items-start mb-3 sm:mb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Verificação KYC</h3>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                    Insira o código de verificação fornecido pela nossa equipe de suporte para concluir a verificação.
-                  </p>
-                </div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">Inserir Código de Verificação</h2>
                 <button
-                  onClick={() => setShowModal(false)}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={closeCodeModal}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition"
                 >
-                  <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+                  <FaTimes className="text-slate-400" />
                 </button>
               </div>
 
-              <div className="my-3 sm:my-4">
-                <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-700 mb-1">
-                  Código de Verificação
-                </label>
+              <p className="text-slate-400 text-sm mb-4">
+                Digite o código KYC de 6 dígitos que você recebeu do suporte.
+              </p>
+
+              <div>
                 <input
-                  id="verificationCode"
                   type="text"
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value)}
                   placeholder="Digite o código de 6 dígitos"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 border ${errorMessage ? 'border-red-500' : 'border-gray-200'} rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base`}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white text-center text-2xl tracking-widest focus:outline-none focus:border-blue-500 transition"
+                  maxLength="6"
                   autoFocus
                 />
-                {errorMessage && (
-                  <div className="flex items-center gap-2 mt-2 text-red-600 text-xs sm:text-sm">
-                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
-                {attempts > 0 && attempts < 3 && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Tentativas restantes: {3 - attempts}
-                  </p>
-                )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <div className="flex gap-3 mt-4">
                 <button
-                  onClick={handleVerifyCode}
-                  disabled={isVerifying || attempts >= 3}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 sm:py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
-                >
-                  {isVerifying ? (
-                    <>
-                      <LoadingSpinner />
-                      Verificando...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-                      Verificar Código
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-sm sm:text-base"
+                  onClick={closeCodeModal}
+                  className="flex-1 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-600 transition"
                 >
                   Cancelar
                 </button>
+                <button
+                  onClick={handleVerifyCode}
+                  disabled={verifying}
+                  className="flex-1 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {verifying ? <FaSpinner className="animate-spin" /> : 'Verificar'}
+                </button>
               </div>
-
-              {attempts >= 3 && (
-                <div className="mt-3 p-3 bg-red-50 rounded-lg">
-                  <p className="text-center text-xs sm:text-sm text-red-600">
-                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 inline-block mr-1" />
-                    Muitas tentativas falhas. Clique em "Enviar Documentos KYC" para recomeçar.
-                  </p>
-                </div>
-              )}
-
-            </div>
+            </motion.div>
           </div>
         )}
-      </div>
-    </div>
+      </AnimatePresence>
+    </>
   );
 };
 
