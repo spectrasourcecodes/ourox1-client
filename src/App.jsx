@@ -38,6 +38,9 @@ import AdminWallets from './pages/admin/AdminWallets';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 
+// ✅ PWA Install Prompt
+import PWAInstallPrompt from './components/PWAInstallPrompt';
+
 function App() {
   return (
     <Router>
@@ -52,6 +55,10 @@ function App() {
           },
         }}
       />
+
+      {/* ✅ PWA Install Prompt – appears globally */}
+      <PWAInstallPrompt />
+
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
