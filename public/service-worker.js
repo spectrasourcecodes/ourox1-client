@@ -1,7 +1,7 @@
 // public/service-worker.js
 
-const CACHE_NAME = 'OuroInvestX1-v2';
-const RUNTIME_CACHE = 'Ouro-runtime-v2';
+const CACHE_NAME = 'OuroInvestX-static-v3';
+const RUNTIME_CACHE = 'OuroInvestX-runtime-v3';
 
 const PRECACHE_URLS = [
   '/',
@@ -9,73 +9,109 @@ const PRECACHE_URLS = [
   '/manifest.json',
 ];
 
-// Install event – precache the app shell
+// Install
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch((err) => {
-        console.warn('Precache failed (some resources may be unavailable):', err);
-      });
+      return cache.addAll(PRECACHE_URLS);
     })
   );
-  self.skipWaiting();
+
+  // Do NOT immediately force activation.
+  // The page can tell the SW when it is safe to activate.
 });
 
-// Activate event – clean old caches
+// Activate
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
+          .filter(
+            (name) =>
+              name !== CACHE_NAME &&
+              name !== RUNTIME_CACHE
+          )
           .map((name) => caches.delete(name))
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-// Fetch event – network first, fallback to cache
+// Fetch
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  if (request.method !== 'GET') {
+    return;
+  }
+
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin API requests
-  if (request.method !== 'GET') return;
-  if (url.origin !== self.location.origin) return;
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
-  // For navigation requests (HTML), use network-first
+  // Navigation / HTML
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
+          if (response && response.ok) {
+            const copy = response.clone();
+
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, copy);
+            });
+          }
+
           return response;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match('/index.html')))
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            return cached || caches.match('/index.html');
+          });
+        })
     );
+
     return;
   }
 
-  // For other assets, cache-first
+  // Static assets
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) return cached;
+      if (cached) {
+        return cached;
+      }
+
       return fetch(request).then((response) => {
-        if (response.status === 200 && response.type === 'basic') {
+        if (
+          response &&
+          response.ok &&
+          response.type === 'basic'
+        ) {
           const copy = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
+
+          caches.open(RUNTIME_CACHE).then((cache) => {
+            cache.put(request, copy);
+          });
         }
+
         return response;
       });
     })
   );
 });
 
-// Handle messages from the app (e.g., skip waiting)
+// Allow the application to activate a waiting SW
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (
+    event.data &&
+    event.data.type === 'SKIP_WAITING'
+  ) {
     self.skipWaiting();
   }
 });

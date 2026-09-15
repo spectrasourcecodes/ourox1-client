@@ -4,33 +4,16 @@ import App from './App';
 import { UserAuthProvider } from './auth/userAuth';
 import './styles/globals.css';
 
-// ✅ Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
+// ✅ ONLY register SW in production (Vite dev server + SW = removeChild errors)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/service-worker.js')
       .then((registration) => {
-        console.log('✅ Service Worker registered:', registration.scope);
-
-        // Check for updates periodically
-        registration.onupdatefound = () => {
-          const installingWorker = registration.installing;
-          if (installingWorker) {
-            installingWorker.onstatechange = () => {
-              if (installingWorker.state === 'installed') {
-                if (navigator.serviceWorker.controller) {
-                  // New content is available – refresh or notify user
-                  console.log('🔄 New content available; please refresh.');
-                } else {
-                  console.log('📦 Content cached for offline use.');
-                }
-              }
-            };
-          }
-        };
+        console.log('✅ SW registered:', registration.scope);
       })
       .catch((error) => {
-        console.error('❌ Service Worker registration failed:', error);
+        console.error('❌ SW registration failed:', error);
       });
   });
 }
