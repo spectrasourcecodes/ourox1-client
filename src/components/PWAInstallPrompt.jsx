@@ -77,7 +77,7 @@ const InstallPrompt = () => {
   const handleDismiss = () => {
     setShowPrompt(false);
     // Remember dismissal for 7 days
-    localStorage.setItem('pwa_prompt_dismissed_at', Date.now().toString());
+    // localStorage.setItem('pwa_prompt_dismissed_at', Date.now().toString());
   };
 
   // ✅ Plain conditional — no AnimatePresence, no motion
