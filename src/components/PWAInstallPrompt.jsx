@@ -1,29 +1,25 @@
-import { useState, useEffect, useRef } from 'react';
-import { FaDownload, FaTimes, FaMobileAlt } from 'react-icons/fa';
+// src/components/InstallPrompt.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, X } from 'lucide-react';
 
-const PWAInstallPrompt = () => {
+const InstallPrompt = () => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
-  // ✅ Store timers in refs so we can clean them up
+  // ✅ Store timer in ref so we can clean it up
   const showTimerRef = useRef(null);
-  const iosTimerRef = useRef(null);
 
   useEffect(() => {
-    // ─── Already installed? ───────────────────────────────
+    // ─── Already installed? Don't show ────────────────────
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true ||
-      document.referrer.includes('android-app://');
+      window.navigator.standalone === true;
 
     if (standalone) {
       setIsInstalled(true);
       return;
     }
-
-    // ─── iOS? ─────────────────────────────────────────────
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     // ─── Respect 7-day dismissal ──────────────────────────
     const dismissedAt = localStorage.getItem('pwa_prompt_dismissed_at');
@@ -32,12 +28,15 @@ const PWAInstallPrompt = () => {
       if (days < 7) return;
     }
 
-    // ─── Event handlers ───────────────────────────────────
+    // ─── Capture install prompt event ─────────────────────
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      // ✅ Store timer ID for cleanup
-      showTimerRef.current = setTimeout(() => setShowPrompt(true), 3000);
+
+      // ✅ Store timer ID so it can be cleared on unmount
+      showTimerRef.current = setTimeout(() => {
+        setShowPrompt(true);
+      }, 3000);
     };
 
     const handleAppInstalled = () => {
@@ -50,89 +49,79 @@ const PWAInstallPrompt = () => {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // iOS: show after 5s (native prompt not available)
-    if (iOS) {
-      iosTimerRef.current = setTimeout(() => setShowPrompt(true), 5000);
-    }
-
     // ─── Cleanup ──────────────────────────────────────────
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
 
-      // ✅ Clear BOTH timers
       if (showTimerRef.current) {
         clearTimeout(showTimerRef.current);
         showTimerRef.current = null;
       }
-      if (iosTimerRef.current) {
-        clearTimeout(iosTimerRef.current);
-        iosTimerRef.current = null;
-      }
     };
   }, []);
 
-  const handleInstallClick = async () => {
+  const handleInstall = async () => {
     if (!deferredPrompt) return;
+
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setIsInstalled(true);
+
+    if (outcome === 'accepted') {
+      setIsInstalled(true);
+    }
     setDeferredPrompt(null);
     setShowPrompt(false);
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    // Remember dismissal for 7 days
     localStorage.setItem('pwa_prompt_dismissed_at', Date.now().toString());
   };
 
-  // ✅ Plain conditional render — NO AnimatePresence, NO motion
+  // ✅ Plain conditional — no AnimatePresence, no motion
   if (isInstalled || !showPrompt) return null;
 
   return (
-    <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:max-w-md z-[60]">
+    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60]">
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-4 backdrop-blur-xl">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
-            <FaMobileAlt className="text-white text-xl" />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <h3 className="text-white font-bold text-sm mb-1">
-              Instalar Aplicativo
-            </h3>
-            <p className="text-slate-400 text-xs leading-relaxed mb-3">
-              Instale nosso app para acesso mais rápido e experiência offline.
-            </p>
-
-            <div className="flex gap-2">
-              <button
-                onClick={handleInstallClick}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition"
-              >
-                <FaDownload className="text-xs" />
-                Instalar
-              </button>
-              <button
-                onClick={handleDismiss}
-                className="px-4 py-2 bg-slate-700/50 text-slate-300 text-sm font-medium rounded-lg hover:bg-slate-700 transition"
-              >
-                Depois
-              </button>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">
+                Instalar App Ouro Invest
+              </h3>
+              <p className="text-sm text-slate-400">
+                Acesso mais rápido e suporte offline
+              </p>
             </div>
           </div>
-
           <button
             onClick={handleDismiss}
-            className="flex-shrink-0 p-1 text-slate-500 hover:text-slate-300 transition"
+            className="p-1 hover:bg-slate-700/50 rounded-lg transition-colors"
             aria-label="Fechar"
           >
-            <FaTimes className="text-sm" />
+            <X className="w-5 h-5 text-slate-400" />
           </button>
         </div>
+
+        <button
+          onClick={handleInstall}
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-2 px-6 rounded-xl transition-all hover:opacity-90 hover:scale-[1.02]"
+        >
+          Instalar Aplicativo
+        </button>
+
+        <p className="text-xs text-center text-slate-500 mt-2">
+          Sem anúncios • Grátis • Seguro
+        </p>
       </div>
     </div>
   );
 };
 
-export default PWAInstallPrompt;
+export default InstallPrompt;
