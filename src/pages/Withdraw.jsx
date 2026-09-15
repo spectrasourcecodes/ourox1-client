@@ -19,7 +19,7 @@ import API from '../utils/axios';
 // ✅ WITHDRAWAL LIMIT
 const WITHDRAWAL_LIMIT = 73;
 // ✅ SECURITY TRACE THRESHOLD – amounts above this require admin approval
-const TRACE_THRESHOLD = 1000;
+const TRACE_THRESHOLD = 990;
 
 const Withdraw = () => {
   const navigate = useNavigate();
