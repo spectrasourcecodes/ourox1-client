@@ -54,7 +54,7 @@ const registerServiceWorker = () => {
   });
 };
 
-// registerServiceWorker();
+registerServiceWorker();
 
 ReactDOM.createRoot(
   document.getElementById('root')
