@@ -194,7 +194,7 @@ const Navbar = () => {
           <div className="flex flex-col h-[calc(100vh-4rem)] px-4 py-4">
             <nav className="flex-1 space-y-1 mt-2">
               {navLinks
-                .filter(link => link.path !== dashboard)
+                .filter(link => link.path !== "/")
                 .map((link) => {
                   const Icon = link.icon;
                   return (
