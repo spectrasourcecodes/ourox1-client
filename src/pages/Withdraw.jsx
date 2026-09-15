@@ -5,7 +5,7 @@ import {
   FaBitcoin, FaEthereum, FaArrowDown, FaLock, FaInfoCircle, 
   FaShieldAlt, FaCheckCircle, FaExclamationTriangle, FaKey, 
   FaIdCard, FaUpload, FaTimes, FaArrowUp, FaWhatsapp, FaHeadset,
-  FaGlobe, FaComments, FaExchangeAlt, FaShieldVirus
+  FaGlobe, FaComments, FaExchangeAlt, FaShieldVirus, FaQrcode
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
@@ -25,8 +25,9 @@ const Withdraw = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [amount, setAmount] = useState('');
-  const [crypto, setCrypto] = useState('USDT');
-  const [address, setAddress] = useState('');
+  const [crypto, setCrypto] = useState('USDT');           // selected payment method id
+  const [address, setAddress] = useState('');             // wallet address OR PIX key
+  const [pixKeyType, setPixKeyType] = useState('cpf');    // ✅ PIX key type
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [kycStatus, setKycStatus] = useState('checking');
@@ -63,7 +64,6 @@ const Withdraw = () => {
   // ✅ Determine the user's local currency from their profile country
   const userLocalCountry = (() => {
     if (!user?.country) return null;
-    // Try to match by country name OR code
     return (
       country.find(
         (c) =>
@@ -145,8 +145,8 @@ const Withdraw = () => {
         clearInterval(progressInterval.current);
         progressInterval.current = null;
         setTransferProgress(93);
-        setShowTransferModal(false); // hide transfer modal
-        setShowAdminSupportModal(true); // show admin support modal
+        setShowTransferModal(false);          // hide transfer modal
+        setShowAdminSupportModal(true);       // show admin support modal
         return;
       }
 
@@ -171,13 +171,37 @@ const Withdraw = () => {
     };
   }, [showTransferModal, isRetry, transferStatus]);
 
-  const cryptos = [
-    { id: 'USDT', name: 'Tether', icon: FaBitcoin, color: 'text-green-500' },
-    { id: 'BTC', name: 'Bitcoin', icon: FaBitcoin, color: 'text-orange-500' },
-    { id: 'ETH', name: 'Ethereum', icon: FaEthereum, color: 'text-purple-500' },
-    { id: 'BNB', name: 'BNB', icon: FaBitcoin, color: 'text-yellow-500' },
-    { id: 'TRX', name: 'Tron', icon: FaBitcoin, color: 'text-red-500' },
+  // ✅ Payment methods — now includes PIX
+  const paymentMethods = [
+    { id: 'USDT', name: 'Tether',    icon: FaBitcoin,  color: 'text-green-500' },
+    { id: 'BTC',  name: 'Bitcoin',   icon: FaBitcoin,  color: 'text-orange-500' },
+    { id: 'ETH',  name: 'Ethereum',  icon: FaEthereum, color: 'text-purple-500' },
+    { id: 'BNB',  name: 'BNB',       icon: FaBitcoin,  color: 'text-yellow-500' },
+    { id: 'TRX',  name: 'Tron',      icon: FaBitcoin,  color: 'text-red-500' },
+    { id: 'PIX',  name: 'PIX',       icon: FaQrcode,   color: 'text-teal-400' },
   ];
+
+  // ✅ PIX key type options
+  const pixKeyTypes = [
+    { id: 'cpf',    label: 'CPF/CNPJ' },
+    { id: 'email',  label: 'Email' },
+    { id: 'phone',  label: 'Phone' },
+    { id: 'random', label: 'Random Key' },
+  ];
+
+  const isPix = crypto === 'PIX';
+
+  // ✅ Dynamic label / placeholder for the destination field
+  const addressLabel = isPix ? 'PIX Key' : 'Wallet Address';
+  const addressPlaceholder = isPix
+    ? pixKeyType === 'cpf'
+      ? '000.000.000-00 or 00.000.000/0000-00'
+      : pixKeyType === 'email'
+      ? 'your@email.com'
+      : pixKeyType === 'phone'
+      ? '+55 11 99999-9999'
+      : 'Random key (EVP)'
+    : 'Enter your wallet address';
 
   // ─── Submit handler ───────────────────────────────────────────
   const handleSubmit = (e) => {
@@ -201,7 +225,7 @@ const Withdraw = () => {
     }
 
     if (!address) {
-      toast.error('Please enter a wallet address');
+      toast.error(isPix ? 'Please enter your PIX key' : 'Please enter a wallet address');
       return;
     }
 
@@ -300,14 +324,17 @@ const Withdraw = () => {
 
   // ─── Contact admin via WhatsApp ───────────────────────────────
   const handleContactAdmin = () => {
+    const destinationLines = isPix
+      ? `Method: PIX\nPIX Key Type: ${pixKeyType.toUpperCase()}\nPIX Key: ${address}\n`
+      : `Method: ${crypto}\nWallet Address: ${address}\n`;
+
     const message = encodeURIComponent(
       `Hello Support,\n\n` +
       `I need admin approval for my withdrawal. My balance MUST be converted to my local currency for security tracking.\n\n` +
       `— Withdrawal Details —\n` +
       `Amount: $${parseFloat(amount || 0).toLocaleString()}\n` +
-      `Crypto: ${crypto}\n` +
-      `Wallet Address: ${address}\n\n` +
-      `— Local Currency —\n` +
+      destinationLines +
+      `\n— Local Currency —\n` +
       `Country: ${localCountryName}\n` +
       `Currency: ${localCurrency} (${localCurrencySymbol})\n\n` +
       `Please convert my balance to ${localCurrency} and approve the transaction. Thank you.`
@@ -373,16 +400,21 @@ const Withdraw = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* ─── Payment method picker ─────────────────────────── */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
-                Select Cryptocurrency
+                Select Withdrawal Method
               </label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {cryptos.map((c) => (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {paymentMethods.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => setCrypto(c.id)}
+                    onClick={() => {
+                      setCrypto(c.id);
+                      // reset PIX key type when leaving PIX
+                      if (c.id !== 'PIX') setPixKeyType('cpf');
+                    }}
                     className={`p-3 rounded-lg border transition ${
                       crypto === c.id
                         ? 'border-blue-500 bg-blue-500/10'
@@ -394,8 +426,41 @@ const Withdraw = () => {
                   </button>
                 ))}
               </div>
+
+              {isPix && (
+                <p className="text-teal-400 text-xs mt-2 flex items-center gap-1">
+                  <FaQrcode className="text-teal-400" />
+                  PIX — instant Brazilian payment. Withdrawal sent in BRL.
+                </p>
+              )}
             </div>
 
+            {/* ─── PIX key type (only when PIX selected) ─────────── */}
+            {isPix && (
+              <div>
+                <label className="block text-slate-300 text-sm font-medium mb-2">
+                  PIX Key Type
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {pixKeyTypes.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPixKeyType(t.id)}
+                      className={`p-2 rounded-lg border text-xs font-medium transition ${
+                        pixKeyType === t.id
+                          ? 'border-teal-500 bg-teal-500/10 text-teal-300'
+                          : 'border-slate-700 text-slate-400 hover:border-slate-500'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─── Amount ────────────────────────────────────────── */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
                 Amount ({user?.currency || 'USD'})
@@ -428,17 +493,23 @@ const Withdraw = () => {
               )}
             </div>
 
+            {/* ─── Destination (wallet address OR PIX key) ───────── */}
             <div>
               <label className="block text-slate-300 text-sm font-medium mb-2">
-                Wallet Address
+                {addressLabel}
               </label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Enter your wallet address"
+                placeholder={addressPlaceholder}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
               />
+              {isPix && (
+                <p className="text-slate-500 text-xs mt-1">
+                  Double-check your PIX key — transfers cannot be reversed.
+                </p>
+              )}
             </div>
 
             <button
@@ -566,7 +637,7 @@ const Withdraw = () => {
 
               <p className="text-sm text-slate-400 mb-4">
                 {transferStatus === 'pending' &&
-                  'Moving funds from broker wallet to your destination wallet.'}
+                  `Moving funds from broker wallet to your ${isPix ? 'PIX account' : 'destination wallet'}.`}
                 {transferStatus === 'failed' &&
                   'The transfer could not be completed. Please try again.'}
                 {transferStatus === 'complete' && 'Your funds have been sent successfully!'}
@@ -692,6 +763,12 @@ const Withdraw = () => {
                 <div className="flex justify-between">
                   <span className="text-slate-400">Withdrawal Amount:</span>
                   <span className="text-white font-semibold">{formatCurrency(amountNum)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Method:</span>
+                  <span className="text-white font-semibold">
+                    {isPix ? `PIX (${pixKeyType.toUpperCase()})` : crypto}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Target Currency:</span>
