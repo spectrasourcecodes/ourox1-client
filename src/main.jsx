@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { UserAuthProvider } from './auth/userAuth';
 import './styles/globals.css';
-import ErrorBoundary from './components/ErrorBoundary';
+// import ErrorBoundary from './components/ErrorBoundary';
 
 // ✅ Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
@@ -38,10 +38,10 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary>
+    {/* <ErrorBoundary> */}
       <UserAuthProvider>
         <App />
       </UserAuthProvider>
-    </ErrorBoundary>
+    {/* </ErrorBoundary> */}
   </React.StrictMode>
 );
