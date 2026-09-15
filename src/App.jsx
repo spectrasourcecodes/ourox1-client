@@ -55,7 +55,7 @@ function App() {
       />
 
       {/* ✅ PWA Install Prompt – appears globally */}
-      {/* <PWAInstallPrompt /> */}
+      <PWAInstallPrompt />
 
       <Routes>
         {/* Public Routes */}
