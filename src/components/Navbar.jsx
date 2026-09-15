@@ -108,7 +108,7 @@ const Navbar = () => {
   const displayBalance = loading ? '...' : `${currencySymbol}${wallet.totalBalance?.toLocaleString() || '0.00'}`;
 
   const openLiveChat = () => {
-    window.open('https://chat-support1.onrender.com', '_blank', 'width=400,height=600,scrollbars=yes');
+    window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (
@@ -125,7 +125,7 @@ const Navbar = () => {
               {isMobileMenuOpen ? <HiX size={24} /> : <HiMenu size={24} />}
             </button>
             
-            <Link to="/" className="flex items-center min-w-[120px]">
+            <Link to="/dashboard" className="flex items-center min-w-[120px]">
               <h2 className="text-lg sm:text-xl font-bold text-white">{SITE_NAME}</h2>
             </Link>
           </div>
@@ -194,7 +194,7 @@ const Navbar = () => {
           <div className="flex flex-col h-[calc(100vh-4rem)] px-4 py-4">
             <nav className="flex-1 space-y-1 mt-2">
               {navLinks
-                .filter(link => link.path !== "/")
+                .filter(link => link.path !== dashboard)
                 .map((link) => {
                   const Icon = link.icon;
                   return (
