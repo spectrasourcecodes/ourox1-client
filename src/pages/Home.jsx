@@ -5,7 +5,7 @@ import {
   FaShieldAlt, FaChartLine, FaBolt, FaEye, FaTag, FaHeadset, 
   FaPercent, FaCoins, FaMicrochip, FaRocket 
 } from 'react-icons/fa';
-import GoogleTranslate from '../components/GoogleTranslate';
+// import GoogleTranslate from '../components/GoogleTranslate';
 import { SITE_NAME, ADMIN_EMAIL, ADMIN_WHATSAPP, ADMIN_TELEGRAM, mockInvestmentPlans, mockForexPairs } from '../data/mockData';
 import LoadingScreen from '../components/LoadingScreen';
 import AnimatedCounter from '../components/AnimatedCounter';
@@ -28,7 +28,7 @@ const Header = () => (
             <span className="text-slate-300">Suporte 24/7</span>
           </div>
         </div>
-        <GoogleTranslate />
+        {/* <GoogleTranslate /> */}
       </div>
     </div>
   </div>

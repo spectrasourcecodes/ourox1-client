@@ -30,7 +30,7 @@ const AdminLayout = () => {
     { path: '/admin/payment-proofs', label: 'Proofs', icon: FaImage },
     { path: '/admin/profile', label: 'Profile', icon: FaUserShield },
     // External link – opens in new tab
-    { path: '', label: 'Live Chat', icon: FaEnvelope, external: true },
+    { path: 'https://chat-support2.onrender.com/admin/private', label: 'Live Chat', icon: FaEnvelope, external: true },
   ];
 
   return (
