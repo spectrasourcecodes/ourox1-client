@@ -1,7 +1,7 @@
 // src/utils/currency.js
 
 export const CURRENCY_SYMBOLS = {
-  USD: 'R$',
+  USD: '$',
   EUR: '€',
   GBP: '£',
   NGN: '₦',
@@ -22,7 +22,7 @@ export const CURRENCY_SYMBOLS = {
 };
 
 export const getCurrencySymbol = (currencyCode) => {
-  return CURRENCY_SYMBOLS[currencyCode] || 'R$';
+  return CURRENCY_SYMBOLS[currencyCode] || '$';
 };
 
 export const getSupportedCurrencies = () => {
