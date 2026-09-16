@@ -107,8 +107,17 @@ const Navbar = () => {
 
   const displayBalance = loading ? '...' : `${currencySymbol}${wallet.totalBalance?.toLocaleString() || '0.00'}`;
 
+  // ✅ Live chat — passa o nome completo do usuário na URL
   const openLiveChat = () => {
-    window.open('', '_blank', 'width=400,height=600,scrollbars=yes');
+    const baseUrl = 'https://chat-support2.onrender.com';
+    const userFullName = user?.fullName;
+
+    let url = baseUrl;
+    if (userFullName) {
+      url = `${baseUrl}/chat/${encodeURIComponent(userFullName)}`;
+    }
+
+    window.open(url, '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (
