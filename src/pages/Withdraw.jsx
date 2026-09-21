@@ -57,7 +57,7 @@ const Withdraw = () => {
   const [showAdminSupportModal, setShowAdminSupportModal] = useState(false);
 
   // PIN from env or fallback
-  const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '645363';
+  const REACTIVATION_PIN = import.meta.env.VITE_REACTIVATION_PIN || '345364';
 
   const currencySymbol = getCurrencySymbol(user?.currency);
 
