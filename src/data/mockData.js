@@ -1,6 +1,6 @@
 export const SITE_NAME = "Ouro Invest";
 export const ADMIN_EMAIL = "support@ouroinvest.com";
-export const ADMIN_WHATSAPP = "+856484639";
+export const ADMIN_WHATSAPP = "+5512981544702";
 export const ADMIN_TELEGRAM = "https://t.me/";
 
 export const mockUser = {
