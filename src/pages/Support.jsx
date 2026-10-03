@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FaQuestionCircle, FaHeadset, FaTelegram, FaWhatsapp, FaChevronDown, FaChevronUp, FaComments, FaExternalLinkAlt } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
+import { useAuth } from '../auth/userAuth';
 import { ADMIN_WHATSAPP, ADMIN_TELEGRAM } from '../data/mockData';
 
 const FAQItem = ({ question, answer }) => {
@@ -26,6 +27,7 @@ const FAQItem = ({ question, answer }) => {
 };
 
 const Support = () => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -66,8 +68,17 @@ const Support = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // ✅ Live chat — passa o nome completo do usuário na URL
   const openLiveChat = () => {
-    window.open('#', '_blank', 'width=400,height=600,scrollbars=yes');
+    const baseUrl = 'https://chat-support2.onrender.com';
+    const userFullName = user?.fullName;
+
+    let url = baseUrl;
+    if (userFullName) {
+      url = `${baseUrl}/chat/${encodeURIComponent(userFullName)}`;
+    }
+
+    window.open(url, '_blank', 'width=400,height=600,scrollbars=yes');
   };
 
   return (
