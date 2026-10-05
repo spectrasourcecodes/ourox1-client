@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { FaSearch, FaEdit, FaTrash, FaBan, FaCheckCircle, FaEye, FaSpinner, FaTimes, FaSave, FaUser, FaEnvelope, FaPhone, FaGlobe, FaDollarSign, FaCalendarAlt } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import API from '../../utils/axios';
-import { country } from '../../data/countries'; // ✅ import countries
+import { country } from '../../data/countries';
+import { getCurrencySymbol } from '../../utils/currency';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -22,6 +23,31 @@ const UserManagement = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // ✅ Helper: resolve a country entry from a stored country value (name or code)
+  const resolveCountry = (countryValue) => {
+    if (!countryValue || !Array.isArray(country)) return null;
+    const target = String(countryValue).trim().toLowerCase();
+    return (
+      country.find(
+        (c) =>
+          String(c?.name ?? '').trim().toLowerCase() === target ||
+          String(c?.code ?? '').trim().toLowerCase() === target
+      ) || null
+    );
+  };
+
+  // ✅ Helper: given a country value, return { currency, symbol }
+  const getCountryCurrency = (countryValue) => {
+    const match = resolveCountry(countryValue);
+    if (match) {
+      return {
+        currency: match.currency,
+        symbol: match.symbol || getCurrencySymbol(match.currency),
+      };
+    }
+    return { currency: null, symbol: null };
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -128,8 +154,21 @@ const UserManagement = () => {
     });
   };
 
+  // ✅ Updated: when country changes, auto-set currency to match
   const handleEditChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === 'country') {
+      const { currency: matchedCurrency } = getCountryCurrency(value);
+      setEditForm(prev => ({
+        ...prev,
+        country: value,
+        // ✅ Auto-sync currency to what the user will see in their dashboard
+        currency: matchedCurrency || prev.currency,
+      }));
+      return;
+    }
+
     setEditForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -141,12 +180,19 @@ const UserManagement = () => {
 
     setSaving(true);
     try {
+      // ✅ Final safety: if the currency doesn't match the country mapping, sync it
+      let finalCurrency = editForm.currency || 'USD';
+      const { currency: matchedCurrency } = getCountryCurrency(editForm.country);
+      if (matchedCurrency) {
+        finalCurrency = matchedCurrency;
+      }
+
       const updateData = {
         fullName: editForm.fullName || '',
         email: editForm.email || '',
         phone: editForm.phone || '',
         country: editForm.country || '',
-        currency: editForm.currency || 'USD',
+        currency: finalCurrency,
         isActive: editForm.isActive !== undefined ? editForm.isActive : true,
         isVerified: editForm.isVerified || false,
       };
@@ -232,6 +278,9 @@ const UserManagement = () => {
     return status || 'pending';
   };
 
+  // ✅ Live preview helper for the modal
+  const editPreviewCurrency = getCountryCurrency(editForm.country);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -294,6 +343,9 @@ const UserManagement = () => {
               <tr className="bg-slate-700">
                 <th className="text-left py-3 px-4 text-slate-300 font-medium">User</th>
                 <th className="text-left py-3 px-4 text-slate-300 font-medium">Contact</th>
+                <th className="text-left py-3 px-4 text-slate-300 font-medium">Country</th>
+                {/* ✅ NEW: Currency column */}
+                <th className="text-left py-3 px-4 text-slate-300 font-medium">Currency</th>
                 <th className="text-left py-3 px-4 text-slate-300 font-medium">Balance</th>
                 <th className="text-left py-3 px-4 text-slate-300 font-medium">Status</th>
                 <th className="text-left py-3 px-4 text-slate-300 font-medium">Verified</th>
@@ -303,88 +355,115 @@ const UserManagement = () => {
             </thead>
             <tbody>
               {users.length > 0 ? (
-                users.map((user) => (
-                  <tr key={user._id} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="font-semibold text-white">{user.fullName || user.name || 'N/A'}</p>
-                        <p className="text-xs text-slate-400">{user.email || 'N/A'}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-400">{user.phone || 'N/A'}</td>
-                    <td className="py-3 px-4 text-white font-semibold">
-                      ${(user.balance || 0).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.isActive)}`}>
-                        {getStatusText(user.isActive)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {user.isVerified ? (
-                        <FaCheckCircle className="text-green-500" />
-                      ) : (
-                        <button
-                          onClick={() => handleVerifyUser(user._id)}
-                          className="text-blue-400 hover:text-blue-300 text-sm"
-                        >
-                          Verify
-                        </button>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-slate-400">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={async () => {
-                            await handleViewUser(user._id);
-                            handleEditUser();
-                          }}
-                          className="p-2 hover:bg-slate-600 rounded-lg transition"
-                          title="Edit"
-                        >
-                          <FaEdit className="text-yellow-400" />
-                        </button>
-                        <button
-                          onClick={() => handleViewUser(user._id)}
-                          className="p-2 hover:bg-slate-600 rounded-lg transition"
-                          title="View"
-                        >
-                          <FaEye className="text-blue-400" />
-                        </button>
-                        {user.isActive ? (
-                          <button
-                            onClick={() => handleStatusChange(user._id, 'suspended')}
-                            className="p-2 hover:bg-slate-600 rounded-lg transition"
-                            title="Suspend"
-                          >
-                            <FaBan className="text-orange-400" />
-                          </button>
+                users.map((user) => {
+                  // ✅ Resolve what the user sees in their dashboard
+                  const { symbol, currency: matchedCurrency } = getCountryCurrency(user.country);
+                  const userCurrency = user.currency || matchedCurrency || 'USD';
+                  const userSymbol = getCurrencySymbol(userCurrency);
+
+                  return (
+                    <tr key={user._id} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                      <td className="py-3 px-4">
+                        <div>
+                          <p className="font-semibold text-white">{user.fullName || user.name || 'N/A'}</p>
+                          <p className="text-xs text-slate-400">{user.email || 'N/A'}</p>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-400">{user.phone || 'N/A'}</td>
+                      <td className="py-3 px-4 text-slate-400">
+                        {user.country ? (
+                          <span className="flex items-center gap-1">
+                            {resolveCountry(user.country)?.flag} {user.country}
+                          </span>
+                        ) : (
+                          'N/A'
+                        )}
+                      </td>
+                      {/* ✅ NEW: Currency cell with symbol preview */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-emerald-400">
+                            {userSymbol}
+                          </span>
+                          <span className="text-xs text-slate-400 font-mono">
+                            {userCurrency}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-white font-semibold">
+                        {userSymbol}{(user.balance || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.isActive)}`}>
+                          {getStatusText(user.isActive)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {user.isVerified ? (
+                          <FaCheckCircle className="text-green-500" />
                         ) : (
                           <button
-                            onClick={() => handleStatusChange(user._id, 'active')}
-                            className="p-2 hover:bg-slate-600 rounded-lg transition"
-                            title="Activate"
+                            onClick={() => handleVerifyUser(user._id)}
+                            className="text-blue-400 hover:text-blue-300 text-sm"
                           >
-                            <FaCheckCircle className="text-green-400" />
+                            Verify
                           </button>
                         )}
-                        <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          className="p-2 hover:bg-slate-600 rounded-lg transition"
-                          title="Delete"
-                        >
-                          <FaTrash className="text-red-400" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="py-3 px-4 text-slate-400">
+                        {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={async () => {
+                              await handleViewUser(user._id);
+                              handleEditUser();
+                            }}
+                            className="p-2 hover:bg-slate-600 rounded-lg transition"
+                            title="Edit"
+                          >
+                            <FaEdit className="text-yellow-400" />
+                          </button>
+                          <button
+                            onClick={() => handleViewUser(user._id)}
+                            className="p-2 hover:bg-slate-600 rounded-lg transition"
+                            title="View"
+                          >
+                            <FaEye className="text-blue-400" />
+                          </button>
+                          {user.isActive ? (
+                            <button
+                              onClick={() => handleStatusChange(user._id, 'suspended')}
+                              className="p-2 hover:bg-slate-600 rounded-lg transition"
+                              title="Suspend"
+                            >
+                              <FaBan className="text-orange-400" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleStatusChange(user._id, 'active')}
+                              className="p-2 hover:bg-slate-600 rounded-lg transition"
+                              title="Activate"
+                            >
+                              <FaCheckCircle className="text-green-400" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteUser(user._id)}
+                            className="p-2 hover:bg-slate-600 rounded-lg transition"
+                            title="Delete"
+                          >
+                            <FaTrash className="text-red-400" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-400">
+                  <td colSpan="9" className="py-8 text-center text-slate-400">
                     No users found
                   </td>
                 </tr>
@@ -511,6 +590,33 @@ const UserManagement = () => {
                 </div>
               </div>
 
+              {/* ✅ LIVE PREVIEW: What the user sees in their dashboard */}
+              <div className="p-4 bg-emerald-500/5 border border-emerald-500/30 rounded-lg">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs text-emerald-400 uppercase tracking-wider font-semibold mb-1">
+                      👁️ User Dashboard Preview
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      This is what the user will see in their dashboard
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-white">
+                      {editPreviewCurrency.symbol || getCurrencySymbol(editForm.currency || 'USD')}
+                    </p>
+                    <p className="text-xs text-slate-400 font-mono">
+                      {editPreviewCurrency.currency || editForm.currency || 'USD'}
+                    </p>
+                  </div>
+                </div>
+                {editForm.country && editPreviewCurrency.currency && (
+                  <p className="text-xs text-emerald-300 mt-2">
+                    ✓ Matched with {resolveCountry(editForm.country)?.flag} {editForm.country}
+                  </p>
+                )}
+              </div>
+
               {/* User Details Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-3 bg-slate-700/30 rounded-lg">
@@ -575,12 +681,14 @@ const UserManagement = () => {
                       <option value="">Select Country</option>
                       {country.map((c) => (
                         <option key={c.code} value={c.name}>
-                          {c.flag} {c.name}
+                          {c.flag} {c.name} ({c.currency})
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <p className="text-white mt-1">{selectedUser.country || 'N/A'}</p>
+                    <p className="text-white mt-1 flex items-center gap-1">
+                      {resolveCountry(selectedUser.country)?.flag} {selectedUser.country || 'N/A'}
+                    </p>
                   )}
                 </div>
                 <div className="p-3 bg-slate-700/30 rounded-lg">
@@ -588,33 +696,27 @@ const UserManagement = () => {
                     <FaDollarSign className="text-blue-400" /> Currency
                   </p>
                   {isEditing ? (
-                    <select
-                      name="currency"
-                      value={editForm.currency || 'USD'}
-                      onChange={handleEditChange}
-                      className="bg-slate-700 rounded px-2 py-1 text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
-                    >
-                      <option value="USD">USD - US Dollar</option>
-                      <option value="EUR">EUR - Euro</option>
-                      <option value="GBP">GBP - British Pound</option>
-                      <option value="NGN">NGN - Nigerian Naira</option>
-                      <option value="BRL">BRL - Brazilian Real</option>
-                      <option value="CAD">CAD - Canadian Dollar</option>
-                      <option value="AUD">AUD - Australian Dollar</option>
-                      <option value="JPY">JPY - Japanese Yen</option>
-                      <option value="CHF">CHF - Swiss Franc</option>
-                      <option value="AED">AED - UAE Dirham</option>
-                      <option value="SAR">SAR - Saudi Riyal</option>
-                      <option value="INR">INR - Indian Rupee</option>
-                      <option value="PKR">PKR - Pakistani Rupee</option>
-                      <option value="KES">KES - Kenyan Shilling</option>
-                      <option value="GHS">GHS - Ghanaian Cedi</option>
-                      <option value="ZAR">ZAR - South African Rand</option>
-                      <option value="DZD">DZD - Algerian Dinar</option>
-                      <option value="JOD">JOD - Jordanian Dinar</option>
-                    </select>
+                    <div className="space-y-1 mt-1">
+                      <input
+                        type="text"
+                        name="currency"
+                        value={editForm.currency || ''}
+                        onChange={handleEditChange}
+                        placeholder="e.g. USD"
+                        maxLength="5"
+                        className="bg-slate-700 rounded px-2 py-1 text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono uppercase"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        Auto-syncs with country. You can override manually.
+                      </p>
+                    </div>
                   ) : (
-                    <p className="text-white mt-1">{selectedUser.currency || 'USD'}</p>
+                    <p className="text-white mt-1 flex items-center gap-2">
+                      <span className="text-lg font-bold text-emerald-400">
+                        {getCurrencySymbol(selectedUser.currency || 'USD')}
+                      </span>
+                      <span className="font-mono">{selectedUser.currency || 'USD'}</span>
+                    </p>
                   )}
                 </div>
                 <div className="p-3 bg-slate-700/30 rounded-lg">
@@ -631,11 +733,24 @@ const UserManagement = () => {
               <div className="p-4 bg-slate-700/30 rounded-lg">
                 <p className="text-xs text-slate-400">Wallet Balance</p>
                 <p className="text-2xl font-bold text-white">
-                  ${(selectedUser.wallet?.balance || selectedUser.balance || 0).toLocaleString()}
+                  {getCurrencySymbol(selectedUser.currency || 'USD')}
+                  {(selectedUser.wallet?.balance || selectedUser.balance || 0).toLocaleString()}
                 </p>
                 <div className="flex gap-4 mt-2 text-sm">
-                  <span className="text-slate-400">Profit: <span className="text-green-400">${(selectedUser.wallet?.profitBalance || 0).toLocaleString()}</span></span>
-                  <span className="text-slate-400">Referral: <span className="text-yellow-400">${(selectedUser.wallet?.referralBalance || 0).toLocaleString()}</span></span>
+                  <span className="text-slate-400">
+                    Profit:{' '}
+                    <span className="text-green-400">
+                      {getCurrencySymbol(selectedUser.currency || 'USD')}
+                      {(selectedUser.wallet?.profitBalance || 0).toLocaleString()}
+                    </span>
+                  </span>
+                  <span className="text-slate-400">
+                    Referral:{' '}
+                    <span className="text-yellow-400">
+                      {getCurrencySymbol(selectedUser.currency || 'USD')}
+                      {(selectedUser.wallet?.referralBalance || 0).toLocaleString()}
+                    </span>
+                  </span>
                 </div>
               </div>
 
