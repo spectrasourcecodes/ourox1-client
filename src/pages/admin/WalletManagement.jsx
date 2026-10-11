@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaSearch, FaWallet, FaSave, FaTimes, FaSpinner, FaEdit, FaShieldAlt } from 'react-icons/fa';
+import { FaSearch, FaWallet, FaSave, FaTimes, FaSpinner } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import API from '../../utils/axios';
 
@@ -15,12 +15,10 @@ const WalletManagement = () => {
     page: 1,
     limit: 20,
     total: 0,
-    pages: 0
+    pages: 0,
   });
 
-  // ═══════════════════════════════════════════════════════════
-  // ✅ FULL FORM STATE — every wallet field
-  // ═══════════════════════════════════════════════════════════
+  // Full form state — every wallet field
   const [walletForm, setWalletForm] = useState({
     // Balances
     balance: '',
@@ -38,7 +36,7 @@ const WalletManagement = () => {
     cryptoBNB: '',
     cryptoTRX: '',
 
-    // Withdrawal settings (top level)
+    // Withdrawal settings
     withdrawalLimit: '',
     thresholdLimit: '',
     minimumWithdrawal: '',
@@ -81,8 +79,8 @@ const WalletManagement = () => {
         params: {
           page: pagination.page,
           limit: pagination.limit,
-          search: searchTerm
-        }
+          search: searchTerm,
+        },
       });
       if (response.data.success) {
         setUsers(response.data.data);
@@ -100,11 +98,11 @@ const WalletManagement = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
     fetchUsers();
   };
 
-  // ✅ Populate the full form from the wallet object
+  // ✅ Populate all form fields from a wallet response
   const populateForm = (data) => {
     const ws = data?.withdrawalSettings || {};
     const iban = ws.iban || {};
@@ -114,7 +112,6 @@ const WalletManagement = () => {
     const addrs = data?.cryptoAddresses || {};
 
     setWalletForm({
-      // Balances
       balance: data?.balance ?? '',
       profitBalance: data?.profitBalance ?? '',
       referralBalance: data?.referralBalance ?? '',
@@ -123,49 +120,42 @@ const WalletManagement = () => {
       pendingDepositAmount: data?.pendingDepositAmount ?? '',
       pendingWithdrawalAmount: data?.pendingWithdrawalAmount ?? '',
 
-      // Crypto addresses
       cryptoBTC: addrs.BTC ?? '',
       cryptoETH: addrs.ETH ?? '',
       cryptoUSDT: addrs.USDT ?? '',
       cryptoBNB: addrs.BNB ?? '',
       cryptoTRX: addrs.TRX ?? '',
 
-      // Withdrawal settings
       withdrawalLimit: ws.withdrawalLimit ?? '',
       thresholdLimit: ws.thresholdLimit ?? '',
       minimumWithdrawal: ws.minimumWithdrawal ?? '',
       bypassSecurityCheck: ws.bypassSecurityCheck ?? false,
 
-      // IBAN
       ibanFeeAmount: iban.feeAmount ?? '',
       ibanFeeWalletAddress: iban.feeWalletAddress ?? '',
       ibanFeeWalletLabel: iban.feeWalletLabel ?? '',
       ibanFeePaid: iban.feePaid ?? false,
 
-      // CCP
       ccpFeeAmount: ccp.feeAmount ?? '',
       ccpFeeWalletAddress: ccp.feeWalletAddress ?? '',
       ccpFeeWalletLabel: ccp.feeWalletLabel ?? '',
       ccpFeePaid: ccp.feePaid ?? false,
 
-      // Reactivation
       reactivationRequired: react.isRequired ?? true,
       reactivationLocked: react.isLocked ?? false,
       reactivationUnlockCount: react.unlockCount ?? '',
 
-      // Transaction stats
       statTotalTransactions: stats.totalTransactions ?? '',
       statTotalDepositCount: stats.totalDepositCount ?? '',
       statTotalWithdrawalCount: stats.totalWithdrawalCount ?? '',
 
-      // Account tier
       accountTier: data?.accountTier ?? 'standard',
     });
   };
 
   const handleViewWallet = async (userId) => {
     try {
-      const userFromList = users.find(u => u._id === userId);
+      const userFromList = users.find((u) => u._id === userId);
       if (!userFromList) {
         toast.error('User not found');
         return;
@@ -179,7 +169,6 @@ const WalletManagement = () => {
         isActive: userFromList.isActive !== undefined ? userFromList.isActive : true,
       });
 
-      // Fetch wallet
       try {
         const walletResponse = await API.get(`/admin/users/${userId}/wallet`);
         const data = walletResponse.data.data;
@@ -211,85 +200,74 @@ const WalletManagement = () => {
     }
   };
 
-  // ✅ Handle both text inputs and checkboxes
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setWalletForm(prev => ({
+    setWalletForm((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
   };
 
-  // ✅ Build the full nested payload
-  const handleUpdateWallet = async () => {
-    if (!selectedUser || !selectedUser._id) {
-      toast.error('No user selected');
-      return;
-    }
-
+  // ✅ Build the full payload from the form
+  const buildPayload = () => {
     const num = (v) => (v === '' || v === null || v === undefined ? undefined : parseFloat(v));
-    const str = (v) => (v === undefined ? undefined : String(v));
 
-    // ─── Build top-level balances ─────────────────────────
-    const updateData = {};
-    const balanceKeys = [
-      'balance', 'profitBalance', 'referralBalance',
-      'totalDeposits', 'totalWithdrawals',
-      'pendingDepositAmount', 'pendingWithdrawalAmount',
-    ];
-    balanceKeys.forEach((k) => {
+    const payload = {};
+
+    // Balances
+    ['balance', 'profitBalance', 'referralBalance', 'totalDeposits', 'totalWithdrawals', 'pendingDepositAmount', 'pendingWithdrawalAmount'].forEach((k) => {
       const v = num(walletForm[k]);
-      if (v !== undefined && !isNaN(v)) updateData[k] = v;
+      if (v !== undefined && !isNaN(v)) payload[k] = v;
     });
 
-    // ─── Crypto addresses ─────────────────────────────────
+    // Crypto addresses
     const addrs = {};
-    if (walletForm.cryptoBTC !== '') addrs.BTC = walletForm.cryptoBTC;
-    if (walletForm.cryptoETH !== '') addrs.ETH = walletForm.cryptoETH;
-    if (walletForm.cryptoUSDT !== '') addrs.USDT = walletForm.cryptoUSDT;
-    if (walletForm.cryptoBNB !== '') addrs.BNB = walletForm.cryptoBNB;
-    if (walletForm.cryptoTRX !== '') addrs.TRX = walletForm.cryptoTRX;
-    if (Object.keys(addrs).length > 0) updateData.cryptoAddresses = addrs;
+    if (walletForm.cryptoBTC) addrs.BTC = walletForm.cryptoBTC;
+    if (walletForm.cryptoETH) addrs.ETH = walletForm.cryptoETH;
+    if (walletForm.cryptoUSDT) addrs.USDT = walletForm.cryptoUSDT;
+    if (walletForm.cryptoBNB) addrs.BNB = walletForm.cryptoBNB;
+    if (walletForm.cryptoTRX) addrs.TRX = walletForm.cryptoTRX;
+    if (Object.keys(addrs).length > 0) payload.cryptoAddresses = addrs;
 
-    // ─── Withdrawal settings ──────────────────────────────
-    const ws = {};
+    // Withdrawal settings (always send, even if some are empty)
+    const ws = {
+      bypassSecurityCheck: !!walletForm.bypassSecurityCheck,
+    };
     const wl = num(walletForm.withdrawalLimit);
     if (wl !== undefined && !isNaN(wl)) ws.withdrawalLimit = wl;
     const tl = num(walletForm.thresholdLimit);
     if (tl !== undefined && !isNaN(tl)) ws.thresholdLimit = tl;
     const mw = num(walletForm.minimumWithdrawal);
     if (mw !== undefined && !isNaN(mw)) ws.minimumWithdrawal = mw;
-    ws.bypassSecurityCheck = !!walletForm.bypassSecurityCheck;
 
-    // IBAN block
-    const iban = {};
+    // IBAN
+    const iban = { feePaid: !!walletForm.ibanFeePaid };
     const ifa = num(walletForm.ibanFeeAmount);
     if (ifa !== undefined && !isNaN(ifa)) iban.feeAmount = ifa;
-    if (walletForm.ibanFeeWalletAddress) iban.feeWalletAddress = str(walletForm.ibanFeeWalletAddress);
-    if (walletForm.ibanFeeWalletLabel) iban.feeWalletLabel = str(walletForm.ibanFeeWalletLabel);
-    iban.feePaid = !!walletForm.ibanFeePaid;
-    if (Object.keys(iban).length > 0) ws.iban = iban;
+    if (walletForm.ibanFeeWalletAddress) iban.feeWalletAddress = walletForm.ibanFeeWalletAddress;
+    if (walletForm.ibanFeeWalletLabel) iban.feeWalletLabel = walletForm.ibanFeeWalletLabel;
+    ws.iban = iban;
 
-    // CCP block
-    const ccp = {};
+    // CCP
+    const ccp = { feePaid: !!walletForm.ccpFeePaid };
     const cfa = num(walletForm.ccpFeeAmount);
     if (cfa !== undefined && !isNaN(cfa)) ccp.feeAmount = cfa;
-    if (walletForm.ccpFeeWalletAddress) ccp.feeWalletAddress = str(walletForm.ccpFeeWalletAddress);
-    if (walletForm.ccpFeeWalletLabel) ccp.feeWalletLabel = str(walletForm.ccpFeeWalletLabel);
-    ccp.feePaid = !!walletForm.ccpFeePaid;
-    if (Object.keys(ccp).length > 0) ws.ccp = ccp;
+    if (walletForm.ccpFeeWalletAddress) ccp.feeWalletAddress = walletForm.ccpFeeWalletAddress;
+    if (walletForm.ccpFeeWalletLabel) ccp.feeWalletLabel = walletForm.ccpFeeWalletLabel;
+    ws.ccp = ccp;
 
-    // Reactivation block
-    const react = {};
-    react.isRequired = !!walletForm.reactivationRequired;
-    react.isLocked = !!walletForm.reactivationLocked;
+    // Reactivation
+    const react = {
+      isRequired: !!walletForm.reactivationRequired,
+      isLocked: !!walletForm.reactivationLocked,
+    };
     const uc = num(walletForm.reactivationUnlockCount);
     if (uc !== undefined && !isNaN(uc)) react.unlockCount = uc;
     ws.reactivation = react;
 
-    if (Object.keys(ws).length > 0) updateData.withdrawalSettings = ws;
+    payload.withdrawalSettings = ws;
 
-    // ─── Transaction stats ────────────────────────────────
+    // Transaction stats
     const stats = {};
     const tt = num(walletForm.statTotalTransactions);
     if (tt !== undefined && !isNaN(tt)) stats.totalTransactions = tt;
@@ -297,29 +275,45 @@ const WalletManagement = () => {
     if (tdc !== undefined && !isNaN(tdc)) stats.totalDepositCount = tdc;
     const twc = num(walletForm.statTotalWithdrawalCount);
     if (twc !== undefined && !isNaN(twc)) stats.totalWithdrawalCount = twc;
-    if (Object.keys(stats).length > 0) updateData.transactionStats = stats;
+    if (Object.keys(stats).length > 0) payload.transactionStats = stats;
 
-    // ─── Account tier ─────────────────────────────────────
-    if (walletForm.accountTier) updateData.accountTier = walletForm.accountTier;
+    // Account tier
+    if (walletForm.accountTier) payload.accountTier = walletForm.accountTier;
 
-    // Validate at least one field is provided
-    if (Object.keys(updateData).length === 0) {
+    return payload;
+  };
+
+  const handleUpdateWallet = async () => {
+    if (!selectedUser || !selectedUser._id) {
+      toast.error('No user selected');
+      return;
+    }
+
+    const payload = buildPayload();
+
+    // 🔍 Diagnostic — see exactly what's being sent
+    console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+
+    if (!payload.withdrawalSettings && Object.keys(payload).length === 0) {
       toast.error('Please enter at least one value to update');
       return;
     }
 
     setUpdating(true);
     try {
-      const response = await API.put(`/admin/users/${selectedUser._id}/wallet`, updateData);
+      const response = await API.put(
+        `/admin/users/${selectedUser._id}/wallet`,
+        payload
+      );
+
       if (response.data.success) {
         toast.success('Wallet updated successfully');
         const newData = response.data.data;
         setWalletData(newData);
         populateForm(newData);
 
-        // Update user list with new balances
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
+        setUsers((prevUsers) =>
+          prevUsers.map((user) =>
             user._id === selectedUser._id
               ? {
                   ...user,
@@ -341,13 +335,9 @@ const WalletManagement = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    return status ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10';
-  };
-
-  const getStatusText = (status) => {
-    return status ? 'Active' : 'Inactive';
-  };
+  const getStatusColor = (status) =>
+    status ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10';
+  const getStatusText = (status) => (status ? 'Active' : 'Inactive');
 
   if (loading) {
     return (
@@ -364,7 +354,9 @@ const WalletManagement = () => {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Wallet Management</h1>
-        <p className="text-slate-400 mt-1">Manage user wallets, balances, and per-account settings</p>
+        <p className="text-slate-400 mt-1">
+          Manage balances, withdrawal limits, and per-account settings
+        </p>
       </div>
 
       {/* Filters */}
@@ -405,15 +397,22 @@ const WalletManagement = () => {
             <tbody>
               {users.length > 0 ? (
                 users.map((user) => (
-                  <tr key={user._id} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
+                  <tr
+                    key={user._id}
+                    className="border-b border-slate-700 hover:bg-slate-700/50 transition"
+                  >
                     <td className="py-3 px-4">
-                      <div>
-                        <p className="font-semibold text-white">{user.fullName || user.name}</p>
-                      </div>
+                      <p className="font-semibold text-white">
+                        {user.fullName || user.name}
+                      </p>
                     </td>
                     <td className="py-3 px-4 text-slate-400">{user.email}</td>
                     <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(user.isActive)}`}>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                          user.isActive
+                        )}`}
+                      >
                         {getStatusText(user.isActive)}
                       </span>
                     </td>
@@ -441,7 +440,6 @@ const WalletManagement = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {pagination.pages > 1 && (
           <div className="flex justify-between items-center p-4 border-t border-slate-700">
             <p className="text-sm text-slate-400">
@@ -449,7 +447,7 @@ const WalletManagement = () => {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
                 disabled={pagination.page <= 1}
                 className="px-3 py-1 bg-slate-700 rounded-lg text-white disabled:opacity-50"
               >
@@ -459,7 +457,7 @@ const WalletManagement = () => {
                 Page {pagination.page} of {pagination.pages}
               </span>
               <button
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
                 disabled={pagination.page >= pagination.pages}
                 className="px-3 py-1 bg-slate-700 rounded-lg text-white disabled:opacity-50"
               >
@@ -470,14 +468,14 @@ const WalletManagement = () => {
         )}
       </div>
 
-      {/* ═══════════════ WALLET MODAL ═══════════════ */}
+      {/* Wallet Modal */}
       {showWalletModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-700 shadow-2xl">
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl z-10">
               <div>
                 <h2 className="text-xl font-bold text-white">Wallet Management</h2>
-                <p className="text-sm text-slate-400">{selectedUser.fullName || 'User'}</p>
+                <p className="text-sm text-slate-400">{selectedUser.fullName}</p>
                 <p className="text-xs text-slate-500">ID: {selectedUser._id}</p>
               </div>
               <button
@@ -493,7 +491,7 @@ const WalletManagement = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* ─── Overview Cards ─────────────────────────── */}
+              {/* Overview */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
                   <p className="text-sm text-slate-400">Balance</p>
@@ -515,7 +513,7 @@ const WalletManagement = () => {
                 </div>
               </div>
 
-              {/* ─── SECTION 1: Balances ─────────────────────── */}
+              {/* Balances */}
               <Section title="Balances" color="blue">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Balance" name="balance" form={walletForm} onChange={handleFormChange} type="number" />
@@ -528,43 +526,41 @@ const WalletManagement = () => {
                 </div>
               </Section>
 
-              {/* ─── SECTION 2: Crypto Addresses ─────────────── */}
+              {/* Crypto Addresses */}
               <Section title="Crypto Addresses" color="purple">
                 <div className="grid grid-cols-1 gap-3">
-                  <Field label="BTC Address" name="cryptoBTC" form={walletForm} onChange={handleFormChange} type="text" placeholder="bc1q..." />
-                  <Field label="ETH Address" name="cryptoETH" form={walletForm} onChange={handleFormChange} type="text" placeholder="0x..." />
-                  <Field label="USDT Address" name="cryptoUSDT" form={walletForm} onChange={handleFormChange} type="text" placeholder="TX..." />
-                  <Field label="BNB Address" name="cryptoBNB" form={walletForm} onChange={handleFormChange} type="text" placeholder="bnb..." />
-                  <Field label="TRX Address" name="cryptoTRX" form={walletForm} onChange={handleFormChange} type="text" placeholder="T..." />
+                  <Field label="BTC Address" name="cryptoBTC" form={walletForm} onChange={handleFormChange} />
+                  <Field label="ETH Address" name="cryptoETH" form={walletForm} onChange={handleFormChange} />
+                  <Field label="USDT Address" name="cryptoUSDT" form={walletForm} onChange={handleFormChange} />
+                  <Field label="BNB Address" name="cryptoBNB" form={walletForm} onChange={handleFormChange} />
+                  <Field label="TRX Address" name="cryptoTRX" form={walletForm} onChange={handleFormChange} />
                 </div>
               </Section>
 
-              {/* ─── SECTION 3: Withdrawal Settings ──────────── */}
-              <Section title="Withdrawal Settings (per account)" color="amber" icon={<FaShieldAlt className="text-amber-400" />}>
+              {/* Withdrawal Settings */}
+              <Section title="Withdrawal Settings (per account)" color="amber">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Field label="Withdrawal Limit ($)" name="withdrawalLimit" form={walletForm} onChange={handleFormChange} type="number" />
                   <Field label="Threshold Limit ($)" name="thresholdLimit" form={walletForm} onChange={handleFormChange} type="number" />
                   <Field label="Minimum Withdrawal ($)" name="minimumWithdrawal" form={walletForm} onChange={handleFormChange} type="number" />
                 </div>
-
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Checkbox label="Bypass Security Check (skip admin approval)" name="bypassSecurityCheck" form={walletForm} onChange={handleFormChange} />
-                  <Checkbox label="Account Locked (reactivation required)" name="reactivationLocked" form={walletForm} onChange={handleFormChange} />
+                  <Checkbox label="Bypass Security Check" name="bypassSecurityCheck" form={walletForm} onChange={handleFormChange} />
+                  <Checkbox label="Account Locked (reactivation)" name="reactivationLocked" form={walletForm} onChange={handleFormChange} />
                 </div>
-
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Checkbox label="Reactivation is Required" name="reactivationRequired" form={walletForm} onChange={handleFormChange} />
                   <Field label="Reactivation Unlock Count" name="reactivationUnlockCount" form={walletForm} onChange={handleFormChange} type="number" />
                 </div>
               </Section>
 
-              {/* ─── SECTION 4: IBAN Fee ──────────────────────── */}
+              {/* IBAN */}
               <Section title="IBAN Fee Settings" color="sky">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Fee Amount (€)" name="ibanFeeAmount" form={walletForm} onChange={handleFormChange} type="number" />
-                  <Field label="Fee Wallet Label" name="ibanFeeWalletLabel" form={walletForm} onChange={handleFormChange} type="text" placeholder="USDT (TRC20)" />
+                  <Field label="Fee Wallet Label" name="ibanFeeWalletLabel" form={walletForm} onChange={handleFormChange} />
                   <div className="md:col-span-2">
-                    <Field label="Fee Wallet Address" name="ibanFeeWalletAddress" form={walletForm} onChange={handleFormChange} type="text" />
+                    <Field label="Fee Wallet Address" name="ibanFeeWalletAddress" form={walletForm} onChange={handleFormChange} />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -572,13 +568,13 @@ const WalletManagement = () => {
                 </div>
               </Section>
 
-              {/* ─── SECTION 5: CCP Fee ───────────────────────── */}
+              {/* CCP */}
               <Section title="CCP Fee Settings (Algeria)" color="emerald">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Fee Amount (€)" name="ccpFeeAmount" form={walletForm} onChange={handleFormChange} type="number" />
-                  <Field label="Fee Wallet Label" name="ccpFeeWalletLabel" form={walletForm} onChange={handleFormChange} type="text" placeholder="USDT (TRC20)" />
+                  <Field label="Fee Wallet Label" name="ccpFeeWalletLabel" form={walletForm} onChange={handleFormChange} />
                   <div className="md:col-span-2">
-                    <Field label="Fee Wallet Address" name="ccpFeeWalletAddress" form={walletForm} onChange={handleFormChange} type="text" />
+                    <Field label="Fee Wallet Address" name="ccpFeeWalletAddress" form={walletForm} onChange={handleFormChange} />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -586,7 +582,7 @@ const WalletManagement = () => {
                 </div>
               </Section>
 
-              {/* ─── SECTION 6: Transaction Stats ─────────────── */}
+              {/* Stats */}
               <Section title="Transaction Statistics" color="slate">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Field label="Total Transactions" name="statTotalTransactions" form={walletForm} onChange={handleFormChange} type="number" />
@@ -595,7 +591,7 @@ const WalletManagement = () => {
                 </div>
               </Section>
 
-              {/* ─── SECTION 7: Account Tier ──────────────────── */}
+              {/* Account Tier */}
               <Section title="Account Tier" color="violet">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Tier</label>
@@ -613,7 +609,7 @@ const WalletManagement = () => {
                 </div>
               </Section>
 
-              {/* ─── Save ─────────────────────────────────────── */}
+              {/* Save */}
               <button
                 onClick={handleUpdateWallet}
                 disabled={updating}
@@ -622,33 +618,6 @@ const WalletManagement = () => {
                 {updating ? <FaSpinner className="animate-spin" /> : <FaSave />}
                 {updating ? 'Updating...' : 'Save All Wallet Changes'}
               </button>
-
-              {/* ─── Read-only summary ─────────────────────────── */}
-              <div className="bg-slate-700/30 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-white mb-2">Wallet Metadata (Read-only)</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="text-slate-400">User ID:</span>
-                    <span className="text-white ml-2 text-xs font-mono">{selectedUser._id}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Currency:</span>
-                    <span className="text-white ml-2">{selectedUser.currency || 'USD'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Wallet Created:</span>
-                    <span className="text-white ml-2">
-                      {walletData?.createdAt ? new Date(walletData.createdAt).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Last Updated:</span>
-                    <span className="text-white ml-2">
-                      {walletData?.updatedAt ? new Date(walletData.updatedAt).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -657,10 +626,8 @@ const WalletManagement = () => {
   );
 };
 
-// ═══════════════════════════════════════════════════════════
-// Reusable subcomponents
-// ═══════════════════════════════════════════════════════════
-const Section = ({ title, color = 'slate', icon, children }) => {
+// ─── Subcomponents ─────────────────────────────────
+const Section = ({ title, color = 'slate', children }) => {
   const colorMap = {
     blue: 'border-blue-500/20 bg-blue-500/5',
     purple: 'border-purple-500/20 bg-purple-500/5',
@@ -672,16 +639,13 @@ const Section = ({ title, color = 'slate', icon, children }) => {
   };
   return (
     <div className={`rounded-lg p-4 border ${colorMap[color] || colorMap.slate}`}>
-      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-        {icon}
-        {title}
-      </h3>
+      <h3 className="text-sm font-semibold text-white mb-3">{title}</h3>
       {children}
     </div>
   );
 };
 
-const Field = ({ label, name, form, onChange, type = 'text', placeholder }) => (
+const Field = ({ label, name, form, onChange, type = 'text' }) => (
   <div>
     <label className="block text-xs text-slate-400 mb-1">{label}</label>
     <input
@@ -689,7 +653,6 @@ const Field = ({ label, name, form, onChange, type = 'text', placeholder }) => (
       name={name}
       value={form[name] ?? ''}
       onChange={onChange}
-      placeholder={placeholder}
       step={type === 'number' ? '0.01' : undefined}
       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
     />
