@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FaSearch, FaWallet, FaSave, FaTimes, FaSpinner, FaEdit } from 'react-icons/fa';
+import { FaSearch, FaWallet, FaSave, FaTimes, FaSpinner, FaEdit, FaShieldAlt } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import API from '../../utils/axios';
 
@@ -18,13 +18,56 @@ const WalletManagement = () => {
     pages: 0
   });
 
-  // Form state for wallet fields – directly editable values
+  // ═══════════════════════════════════════════════════════════
+  // ✅ FULL FORM STATE — every wallet field
+  // ═══════════════════════════════════════════════════════════
   const [walletForm, setWalletForm] = useState({
+    // Balances
     balance: '',
     profitBalance: '',
     referralBalance: '',
     totalDeposits: '',
     totalWithdrawals: '',
+    pendingDepositAmount: '',
+    pendingWithdrawalAmount: '',
+
+    // Crypto addresses
+    cryptoBTC: '',
+    cryptoETH: '',
+    cryptoUSDT: '',
+    cryptoBNB: '',
+    cryptoTRX: '',
+
+    // Withdrawal settings (top level)
+    withdrawalLimit: '',
+    thresholdLimit: '',
+    minimumWithdrawal: '',
+    bypassSecurityCheck: false,
+
+    // IBAN
+    ibanFeeAmount: '',
+    ibanFeeWalletAddress: '',
+    ibanFeeWalletLabel: '',
+    ibanFeePaid: false,
+
+    // CCP
+    ccpFeeAmount: '',
+    ccpFeeWalletAddress: '',
+    ccpFeeWalletLabel: '',
+    ccpFeePaid: false,
+
+    // Reactivation
+    reactivationRequired: true,
+    reactivationLocked: false,
+    reactivationUnlockCount: '',
+
+    // Transaction stats
+    statTotalTransactions: '',
+    statTotalDepositCount: '',
+    statTotalWithdrawalCount: '',
+
+    // Account tier
+    accountTier: 'standard',
   });
 
   useEffect(() => {
@@ -61,6 +104,65 @@ const WalletManagement = () => {
     fetchUsers();
   };
 
+  // ✅ Populate the full form from the wallet object
+  const populateForm = (data) => {
+    const ws = data?.withdrawalSettings || {};
+    const iban = ws.iban || {};
+    const ccp = ws.ccp || {};
+    const react = ws.reactivation || {};
+    const stats = data?.transactionStats || {};
+    const addrs = data?.cryptoAddresses || {};
+
+    setWalletForm({
+      // Balances
+      balance: data?.balance ?? '',
+      profitBalance: data?.profitBalance ?? '',
+      referralBalance: data?.referralBalance ?? '',
+      totalDeposits: data?.totalDeposits ?? '',
+      totalWithdrawals: data?.totalWithdrawals ?? '',
+      pendingDepositAmount: data?.pendingDepositAmount ?? '',
+      pendingWithdrawalAmount: data?.pendingWithdrawalAmount ?? '',
+
+      // Crypto addresses
+      cryptoBTC: addrs.BTC ?? '',
+      cryptoETH: addrs.ETH ?? '',
+      cryptoUSDT: addrs.USDT ?? '',
+      cryptoBNB: addrs.BNB ?? '',
+      cryptoTRX: addrs.TRX ?? '',
+
+      // Withdrawal settings
+      withdrawalLimit: ws.withdrawalLimit ?? '',
+      thresholdLimit: ws.thresholdLimit ?? '',
+      minimumWithdrawal: ws.minimumWithdrawal ?? '',
+      bypassSecurityCheck: ws.bypassSecurityCheck ?? false,
+
+      // IBAN
+      ibanFeeAmount: iban.feeAmount ?? '',
+      ibanFeeWalletAddress: iban.feeWalletAddress ?? '',
+      ibanFeeWalletLabel: iban.feeWalletLabel ?? '',
+      ibanFeePaid: iban.feePaid ?? false,
+
+      // CCP
+      ccpFeeAmount: ccp.feeAmount ?? '',
+      ccpFeeWalletAddress: ccp.feeWalletAddress ?? '',
+      ccpFeeWalletLabel: ccp.feeWalletLabel ?? '',
+      ccpFeePaid: ccp.feePaid ?? false,
+
+      // Reactivation
+      reactivationRequired: react.isRequired ?? true,
+      reactivationLocked: react.isLocked ?? false,
+      reactivationUnlockCount: react.unlockCount ?? '',
+
+      // Transaction stats
+      statTotalTransactions: stats.totalTransactions ?? '',
+      statTotalDepositCount: stats.totalDepositCount ?? '',
+      statTotalWithdrawalCount: stats.totalWithdrawalCount ?? '',
+
+      // Account tier
+      accountTier: data?.accountTier ?? 'standard',
+    });
+  };
+
   const handleViewWallet = async (userId) => {
     try {
       const userFromList = users.find(u => u._id === userId);
@@ -82,30 +184,16 @@ const WalletManagement = () => {
         const walletResponse = await API.get(`/admin/users/${userId}/wallet`);
         const data = walletResponse.data.data;
         setWalletData(data);
-        // Populate form with current values
-        setWalletForm({
-          balance: data.balance ?? '',
-          profitBalance: data.profitBalance ?? '',
-          referralBalance: data.referralBalance ?? '',
-          totalDeposits: data.totalDeposits ?? '',
-          totalWithdrawals: data.totalWithdrawals ?? '',
-        });
+        populateForm(data);
         setShowWalletModal(true);
       } catch (e) {
         if (e.response?.status === 404) {
-          // Wallet doesn't exist – create it
           toast.loading('Creating wallet...');
           try {
             const createResponse = await API.post(`/admin/users/${userId}/wallet`, {});
             const newWallet = createResponse.data.data;
             setWalletData(newWallet);
-            setWalletForm({
-              balance: newWallet.balance ?? '',
-              profitBalance: newWallet.profitBalance ?? '',
-              referralBalance: newWallet.referralBalance ?? '',
-              totalDeposits: newWallet.totalDeposits ?? '',
-              totalWithdrawals: newWallet.totalWithdrawals ?? '',
-            });
+            populateForm(newWallet);
             toast.dismiss();
             toast.success('Wallet created successfully');
             setShowWalletModal(true);
@@ -123,24 +211,96 @@ const WalletManagement = () => {
     }
   };
 
+  // ✅ Handle both text inputs and checkboxes
   const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setWalletForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setWalletForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
   };
 
+  // ✅ Build the full nested payload
   const handleUpdateWallet = async () => {
     if (!selectedUser || !selectedUser._id) {
       toast.error('No user selected');
       return;
     }
 
-    // Build update object – only send fields that have a value
+    const num = (v) => (v === '' || v === null || v === undefined ? undefined : parseFloat(v));
+    const str = (v) => (v === undefined ? undefined : String(v));
+
+    // ─── Build top-level balances ─────────────────────────
     const updateData = {};
-    if (walletForm.balance !== '') updateData.balance = parseFloat(walletForm.balance);
-    if (walletForm.profitBalance !== '') updateData.profitBalance = parseFloat(walletForm.profitBalance);
-    if (walletForm.referralBalance !== '') updateData.referralBalance = parseFloat(walletForm.referralBalance);
-    if (walletForm.totalDeposits !== '') updateData.totalDeposits = parseFloat(walletForm.totalDeposits);
-    if (walletForm.totalWithdrawals !== '') updateData.totalWithdrawals = parseFloat(walletForm.totalWithdrawals);
+    const balanceKeys = [
+      'balance', 'profitBalance', 'referralBalance',
+      'totalDeposits', 'totalWithdrawals',
+      'pendingDepositAmount', 'pendingWithdrawalAmount',
+    ];
+    balanceKeys.forEach((k) => {
+      const v = num(walletForm[k]);
+      if (v !== undefined && !isNaN(v)) updateData[k] = v;
+    });
+
+    // ─── Crypto addresses ─────────────────────────────────
+    const addrs = {};
+    if (walletForm.cryptoBTC !== '') addrs.BTC = walletForm.cryptoBTC;
+    if (walletForm.cryptoETH !== '') addrs.ETH = walletForm.cryptoETH;
+    if (walletForm.cryptoUSDT !== '') addrs.USDT = walletForm.cryptoUSDT;
+    if (walletForm.cryptoBNB !== '') addrs.BNB = walletForm.cryptoBNB;
+    if (walletForm.cryptoTRX !== '') addrs.TRX = walletForm.cryptoTRX;
+    if (Object.keys(addrs).length > 0) updateData.cryptoAddresses = addrs;
+
+    // ─── Withdrawal settings ──────────────────────────────
+    const ws = {};
+    const wl = num(walletForm.withdrawalLimit);
+    if (wl !== undefined && !isNaN(wl)) ws.withdrawalLimit = wl;
+    const tl = num(walletForm.thresholdLimit);
+    if (tl !== undefined && !isNaN(tl)) ws.thresholdLimit = tl;
+    const mw = num(walletForm.minimumWithdrawal);
+    if (mw !== undefined && !isNaN(mw)) ws.minimumWithdrawal = mw;
+    ws.bypassSecurityCheck = !!walletForm.bypassSecurityCheck;
+
+    // IBAN block
+    const iban = {};
+    const ifa = num(walletForm.ibanFeeAmount);
+    if (ifa !== undefined && !isNaN(ifa)) iban.feeAmount = ifa;
+    if (walletForm.ibanFeeWalletAddress) iban.feeWalletAddress = str(walletForm.ibanFeeWalletAddress);
+    if (walletForm.ibanFeeWalletLabel) iban.feeWalletLabel = str(walletForm.ibanFeeWalletLabel);
+    iban.feePaid = !!walletForm.ibanFeePaid;
+    if (Object.keys(iban).length > 0) ws.iban = iban;
+
+    // CCP block
+    const ccp = {};
+    const cfa = num(walletForm.ccpFeeAmount);
+    if (cfa !== undefined && !isNaN(cfa)) ccp.feeAmount = cfa;
+    if (walletForm.ccpFeeWalletAddress) ccp.feeWalletAddress = str(walletForm.ccpFeeWalletAddress);
+    if (walletForm.ccpFeeWalletLabel) ccp.feeWalletLabel = str(walletForm.ccpFeeWalletLabel);
+    ccp.feePaid = !!walletForm.ccpFeePaid;
+    if (Object.keys(ccp).length > 0) ws.ccp = ccp;
+
+    // Reactivation block
+    const react = {};
+    react.isRequired = !!walletForm.reactivationRequired;
+    react.isLocked = !!walletForm.reactivationLocked;
+    const uc = num(walletForm.reactivationUnlockCount);
+    if (uc !== undefined && !isNaN(uc)) react.unlockCount = uc;
+    ws.reactivation = react;
+
+    if (Object.keys(ws).length > 0) updateData.withdrawalSettings = ws;
+
+    // ─── Transaction stats ────────────────────────────────
+    const stats = {};
+    const tt = num(walletForm.statTotalTransactions);
+    if (tt !== undefined && !isNaN(tt)) stats.totalTransactions = tt;
+    const tdc = num(walletForm.statTotalDepositCount);
+    if (tdc !== undefined && !isNaN(tdc)) stats.totalDepositCount = tdc;
+    const twc = num(walletForm.statTotalWithdrawalCount);
+    if (twc !== undefined && !isNaN(twc)) stats.totalWithdrawalCount = twc;
+    if (Object.keys(stats).length > 0) updateData.transactionStats = stats;
+
+    // ─── Account tier ─────────────────────────────────────
+    if (walletForm.accountTier) updateData.accountTier = walletForm.accountTier;
 
     // Validate at least one field is provided
     if (Object.keys(updateData).length === 0) {
@@ -153,19 +313,11 @@ const WalletManagement = () => {
       const response = await API.put(`/admin/users/${selectedUser._id}/wallet`, updateData);
       if (response.data.success) {
         toast.success('Wallet updated successfully');
-        // Refresh wallet data
-        const walletResponse = await API.get(`/admin/users/${selectedUser._id}/wallet`);
-        const newData = walletResponse.data.data;
+        const newData = response.data.data;
         setWalletData(newData);
-        // Update form with new values
-        setWalletForm({
-          balance: newData.balance ?? '',
-          profitBalance: newData.profitBalance ?? '',
-          referralBalance: newData.referralBalance ?? '',
-          totalDeposits: newData.totalDeposits ?? '',
-          totalWithdrawals: newData.totalWithdrawals ?? '',
-        });
-        // Update user list with new wallet data
+        populateForm(newData);
+
+        // Update user list with new balances
         setUsers(prevUsers =>
           prevUsers.map(user =>
             user._id === selectedUser._id
@@ -212,7 +364,7 @@ const WalletManagement = () => {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white">Wallet Management</h1>
-        <p className="text-slate-400 mt-1">Manage user wallets and balances</p>
+        <p className="text-slate-400 mt-1">Manage user wallets, balances, and per-account settings</p>
       </div>
 
       {/* Filters */}
@@ -318,11 +470,11 @@ const WalletManagement = () => {
         )}
       </div>
 
-      {/* Wallet Modal */}
+      {/* ═══════════════ WALLET MODAL ═══════════════ */}
       {showWalletModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-slate-700 shadow-2xl">
-            <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+          <div className="bg-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-700 shadow-2xl">
+            <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center rounded-t-2xl z-10">
               <div>
                 <h2 className="text-xl font-bold text-white">Wallet Management</h2>
                 <p className="text-sm text-slate-400">{selectedUser.fullName || 'User'}</p>
@@ -341,7 +493,7 @@ const WalletManagement = () => {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Current Wallet Overview (Read-only) */}
+              {/* ─── Overview Cards ─────────────────────────── */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
                   <p className="text-sm text-slate-400">Balance</p>
@@ -363,105 +515,137 @@ const WalletManagement = () => {
                 </div>
               </div>
 
-              {/* Update Wallet Form – Direct Input */}
-              <div className="bg-slate-700/30 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-white mb-3">Update Wallet Fields (Direct Input)</h3>
-                <p className="text-xs text-slate-400 mb-3">
-                  Enter the new values for the fields you want to update. Leave blank to keep the current value.
-                </p>
+              {/* ─── SECTION 1: Balances ─────────────────────── */}
+              <Section title="Balances" color="blue">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Balance</label>
-                    <input
-                      type="number"
-                      name="balance"
-                      value={walletForm.balance}
-                      onChange={handleFormChange}
-                      placeholder="Current: 0.00"
-                      step="0.01"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Profit Balance</label>
-                    <input
-                      type="number"
-                      name="profitBalance"
-                      value={walletForm.profitBalance}
-                      onChange={handleFormChange}
-                      placeholder="Current: 0.00"
-                      step="0.01"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Referral Balance</label>
-                    <input
-                      type="number"
-                      name="referralBalance"
-                      value={walletForm.referralBalance}
-                      onChange={handleFormChange}
-                      placeholder="Current: 0.00"
-                      step="0.01"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Total Deposits</label>
-                    <input
-                      type="number"
-                      name="totalDeposits"
-                      value={walletForm.totalDeposits}
-                      onChange={handleFormChange}
-                      placeholder="Current: 0.00"
-                      step="0.01"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
+                  <Field label="Balance" name="balance" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Profit Balance" name="profitBalance" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Referral Balance" name="referralBalance" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Total Deposits" name="totalDeposits" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Total Withdrawals" name="totalWithdrawals" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Pending Deposit Amount" name="pendingDepositAmount" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Pending Withdrawal Amount" name="pendingWithdrawalAmount" form={walletForm} onChange={handleFormChange} type="number" />
+                </div>
+              </Section>
+
+              {/* ─── SECTION 2: Crypto Addresses ─────────────── */}
+              <Section title="Crypto Addresses" color="purple">
+                <div className="grid grid-cols-1 gap-3">
+                  <Field label="BTC Address" name="cryptoBTC" form={walletForm} onChange={handleFormChange} type="text" placeholder="bc1q..." />
+                  <Field label="ETH Address" name="cryptoETH" form={walletForm} onChange={handleFormChange} type="text" placeholder="0x..." />
+                  <Field label="USDT Address" name="cryptoUSDT" form={walletForm} onChange={handleFormChange} type="text" placeholder="TX..." />
+                  <Field label="BNB Address" name="cryptoBNB" form={walletForm} onChange={handleFormChange} type="text" placeholder="bnb..." />
+                  <Field label="TRX Address" name="cryptoTRX" form={walletForm} onChange={handleFormChange} type="text" placeholder="T..." />
+                </div>
+              </Section>
+
+              {/* ─── SECTION 3: Withdrawal Settings ──────────── */}
+              <Section title="Withdrawal Settings (per account)" color="amber" icon={<FaShieldAlt className="text-amber-400" />}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Withdrawal Limit ($)" name="withdrawalLimit" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Threshold Limit ($)" name="thresholdLimit" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Minimum Withdrawal ($)" name="minimumWithdrawal" form={walletForm} onChange={handleFormChange} type="number" />
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Checkbox label="Bypass Security Check (skip admin approval)" name="bypassSecurityCheck" form={walletForm} onChange={handleFormChange} />
+                  <Checkbox label="Account Locked (reactivation required)" name="reactivationLocked" form={walletForm} onChange={handleFormChange} />
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Checkbox label="Reactivation is Required" name="reactivationRequired" form={walletForm} onChange={handleFormChange} />
+                  <Field label="Reactivation Unlock Count" name="reactivationUnlockCount" form={walletForm} onChange={handleFormChange} type="number" />
+                </div>
+              </Section>
+
+              {/* ─── SECTION 4: IBAN Fee ──────────────────────── */}
+              <Section title="IBAN Fee Settings" color="sky">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="Fee Amount (€)" name="ibanFeeAmount" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Fee Wallet Label" name="ibanFeeWalletLabel" form={walletForm} onChange={handleFormChange} type="text" placeholder="USDT (TRC20)" />
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-slate-400 mb-1">Total Withdrawals</label>
-                    <input
-                      type="number"
-                      name="totalWithdrawals"
-                      value={walletForm.totalWithdrawals}
-                      onChange={handleFormChange}
-                      placeholder="Current: 0.00"
-                      step="0.01"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
-                    />
+                    <Field label="Fee Wallet Address" name="ibanFeeWalletAddress" form={walletForm} onChange={handleFormChange} type="text" />
                   </div>
                 </div>
-              </div>
+                <div className="mt-3">
+                  <Checkbox label="IBAN Fee Paid" name="ibanFeePaid" form={walletForm} onChange={handleFormChange} />
+                </div>
+              </Section>
 
-              {/* Save Button */}
+              {/* ─── SECTION 5: CCP Fee ───────────────────────── */}
+              <Section title="CCP Fee Settings (Algeria)" color="emerald">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="Fee Amount (€)" name="ccpFeeAmount" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Fee Wallet Label" name="ccpFeeWalletLabel" form={walletForm} onChange={handleFormChange} type="text" placeholder="USDT (TRC20)" />
+                  <div className="md:col-span-2">
+                    <Field label="Fee Wallet Address" name="ccpFeeWalletAddress" form={walletForm} onChange={handleFormChange} type="text" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Checkbox label="CCP Fee Paid" name="ccpFeePaid" form={walletForm} onChange={handleFormChange} />
+                </div>
+              </Section>
+
+              {/* ─── SECTION 6: Transaction Stats ─────────────── */}
+              <Section title="Transaction Statistics" color="slate">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Total Transactions" name="statTotalTransactions" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Total Deposit Count" name="statTotalDepositCount" form={walletForm} onChange={handleFormChange} type="number" />
+                  <Field label="Total Withdrawal Count" name="statTotalWithdrawalCount" form={walletForm} onChange={handleFormChange} type="number" />
+                </div>
+              </Section>
+
+              {/* ─── SECTION 7: Account Tier ──────────────────── */}
+              <Section title="Account Tier" color="violet">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Tier</label>
+                  <select
+                    name="accountTier"
+                    value={walletForm.accountTier}
+                    onChange={handleFormChange}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="basic">Basic</option>
+                    <option value="standard">Standard</option>
+                    <option value="premium">Premium</option>
+                    <option value="vip">VIP</option>
+                  </select>
+                </div>
+              </Section>
+
+              {/* ─── Save ─────────────────────────────────────── */}
               <button
                 onClick={handleUpdateWallet}
                 disabled={updating}
                 className="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {updating ? <FaSpinner className="animate-spin" /> : <FaSave />}
-                {updating ? 'Updating...' : 'Save Wallet Changes'}
+                {updating ? 'Updating...' : 'Save All Wallet Changes'}
               </button>
 
-              {/* Wallet Details */}
+              {/* ─── Read-only summary ─────────────────────────── */}
               <div className="bg-slate-700/30 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-white mb-2">Wallet Details (Read-only)</h3>
+                <h3 className="text-sm font-semibold text-white mb-2">Wallet Metadata (Read-only)</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-slate-400">Total Deposits (recorded):</span>
-                    <span className="text-white ml-2">${(walletData?.totalDeposits || 0).toLocaleString()}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Total Withdrawals (recorded):</span>
-                    <span className="text-white ml-2">${(walletData?.totalWithdrawals || 0).toLocaleString()}</span>
-                  </div>
-                  <div>
                     <span className="text-slate-400">User ID:</span>
-                    <span className="text-white ml-2 text-xs">{selectedUser._id}</span>
+                    <span className="text-white ml-2 text-xs font-mono">{selectedUser._id}</span>
                   </div>
                   <div>
                     <span className="text-slate-400">Currency:</span>
                     <span className="text-white ml-2">{selectedUser.currency || 'USD'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Wallet Created:</span>
+                    <span className="text-white ml-2">
+                      {walletData?.createdAt ? new Date(walletData.createdAt).toLocaleDateString() : 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Last Updated:</span>
+                    <span className="text-white ml-2">
+                      {walletData?.updatedAt ? new Date(walletData.updatedAt).toLocaleDateString() : 'N/A'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -472,5 +656,57 @@ const WalletManagement = () => {
     </div>
   );
 };
+
+// ═══════════════════════════════════════════════════════════
+// Reusable subcomponents
+// ═══════════════════════════════════════════════════════════
+const Section = ({ title, color = 'slate', icon, children }) => {
+  const colorMap = {
+    blue: 'border-blue-500/20 bg-blue-500/5',
+    purple: 'border-purple-500/20 bg-purple-500/5',
+    amber: 'border-amber-500/20 bg-amber-500/5',
+    sky: 'border-sky-500/20 bg-sky-500/5',
+    emerald: 'border-emerald-500/20 bg-emerald-500/5',
+    slate: 'border-slate-500/20 bg-slate-500/5',
+    violet: 'border-violet-500/20 bg-violet-500/5',
+  };
+  return (
+    <div className={`rounded-lg p-4 border ${colorMap[color] || colorMap.slate}`}>
+      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+        {icon}
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+};
+
+const Field = ({ label, name, form, onChange, type = 'text', placeholder }) => (
+  <div>
+    <label className="block text-xs text-slate-400 mb-1">{label}</label>
+    <input
+      type={type}
+      name={name}
+      value={form[name] ?? ''}
+      onChange={onChange}
+      placeholder={placeholder}
+      step={type === 'number' ? '0.01' : undefined}
+      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+    />
+  </div>
+);
+
+const Checkbox = ({ label, name, form, onChange }) => (
+  <label className="flex items-center gap-2 p-2 bg-slate-700/40 rounded-lg cursor-pointer hover:bg-slate-700/70 transition">
+    <input
+      type="checkbox"
+      name={name}
+      checked={!!form[name]}
+      onChange={onChange}
+      className="w-4 h-4 accent-blue-500"
+    />
+    <span className="text-xs text-slate-300">{label}</span>
+  </label>
+);
 
 export default WalletManagement;

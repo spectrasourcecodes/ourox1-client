@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   FaWallet, FaChartLine, FaMoneyBillWave, FaExchangeAlt, 
-  FaArrowUp, FaArrowDown, FaEye, FaEyeSlash, FaCopy 
+  FaArrowUp, FaArrowDown, FaEye, FaEyeSlash, FaCopy,
+  FaShieldAlt, FaLock
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import Navbar from '../components/Navbar';
@@ -22,6 +23,9 @@ const Dashboard = () => {
   const [activeInvestments, setActiveInvestments] = useState([]);
   const [showBalance, setShowBalance] = useState(true);
   const [loading, setLoading] = useState(true);
+
+  // ✅ NEW: per-account withdrawal settings
+  const [withdrawalSettings, setWithdrawalSettings] = useState(null);
 
   // ✅ Obtém o símbolo da moeda
   const currencySymbol = getCurrencySymbol(user?.currency);
@@ -47,6 +51,11 @@ const Dashboard = () => {
         setWallet(mappedWallet);
         setActiveInvestments(data.investments || []);
         setRecentTransactions(data.transactions || []);
+
+        // ✅ NEW: store per-account withdrawal settings
+        if (data.wallet?.withdrawalSettings) {
+          setWithdrawalSettings(data.wallet.withdrawalSettings);
+        }
       } else {
         toast.error('Falha ao carregar o painel');
       }
@@ -69,6 +78,11 @@ const Dashboard = () => {
 
   const walletData = wallet || fallbackWallet;
 
+  // ✅ Derived per-account values (with fallbacks)
+  const WITHDRAWAL_LIMIT = withdrawalSettings?.withdrawalLimit ?? 1500;
+  const REACTIVATION_LOCKED = withdrawalSettings?.reactivation?.isLocked ?? false;
+  const ACCOUNT_TIER = withdrawalSettings?.accountTier ?? null;
+
   const chartLabels = ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'];
   const chartData = [12450, 15800, 14200, 18900];
 
@@ -77,7 +91,6 @@ const Dashboard = () => {
     toast.success('Endereço da carteira copiado!');
   };
 
-  // ✅ Formata valor com o símbolo da moeda
   const formatCurrency = (value) => {
     return `${currencySymbol}${value?.toLocaleString() || '0.00'}`;
   };
@@ -115,6 +128,27 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* ✅ Account locked warning (only if applicable) */}
+        {REACTIVATION_LOCKED && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3">
+            <FaLock className="text-red-500 text-lg flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-400 text-sm font-semibold">
+                Sua conta está temporariamente bloqueada
+              </p>
+              <p className="text-red-300 text-xs mt-0.5">
+                Entre em contato com o suporte para desbloquear os saques.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/support')}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition flex-shrink-0"
+            >
+              Suporte
+            </button>
+          </div>
+        )}
+
         {/* Grade de Estatísticas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard 
@@ -151,6 +185,37 @@ const Dashboard = () => {
             hideValue={!showBalance}
             currencySymbol={currencySymbol}
           />
+        </div>
+
+        {/* ✅ NEW: Withdrawal limit + account tier info row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="bg-slate-800/60 border border-blue-500/20 rounded-xl p-4 flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/30 rounded-full flex items-center justify-center flex-shrink-0">
+              <FaShieldAlt className="text-blue-400 text-lg" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-slate-400 uppercase tracking-wider">Limite de Saque</p>
+              <p className="text-xl font-bold text-white">
+                {formatCurrency(WITHDRAWAL_LIMIT)}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">por solicitação</p>
+            </div>
+          </div>
+
+          {ACCOUNT_TIER && (
+            <div className="bg-slate-800/60 border border-purple-500/20 rounded-xl p-4 flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-500/10 border border-purple-500/30 rounded-full flex items-center justify-center flex-shrink-0">
+                <FaChartLine className="text-purple-400 text-lg" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-slate-400 uppercase tracking-wider">Nível da Conta</p>
+                <p className="text-xl font-bold text-white capitalize">
+                  {ACCOUNT_TIER}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">status atual</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Gráfico e Ações Rápidas */}
